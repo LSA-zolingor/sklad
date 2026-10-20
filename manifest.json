@@ -1,0 +1,33 @@
+{
+  "id": "/sklad/",
+  "name": "Склад: учёт и инвентаризация",
+  "short_name": "Склад",
+  "description": "Остатки, приход и расход, инвентаризация, печать этикеток с QR-кодами",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#24433A",
+  "theme_color": "#24433A",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

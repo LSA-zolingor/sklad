@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Склад: учёт и инвентаризация</title>
+<meta name="theme-color" content="#24433A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Склад">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{
+  --paper:#ECEFEA; --card:#FFFFFF; --ink:#1A2421; --muted:#55615C; --line:#C8D0CB;
+  --bar:#24433A; --barInk:#F2F6F4; --vis:#DD6410; --visInk:#FFFFFF; --soft:#FBE3D1;
+  --ok:#2C8A57; --okSoft:#D7EEE0; --warn:#9A6408; --warnSoft:#F8EBCF; --danger:#B8352A; --dangerSoft:#F6DCD8; --chip:#DFE5E1;
+  --cond:"Roboto Condensed","sans-serif-condensed","Arial Narrow",sans-serif;
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#121816; --card:#1B2320; --ink:#E4EAE7; --muted:#9AA8A2; --line:#33403B;
+    --bar:#0E1513; --barInk:#E4EAE7; --vis:#F07E2C; --soft:#3E2716;
+    --ok:#4CB17B; --okSoft:#17352A; --warn:#E0A63D; --warnSoft:#3A2E14; --danger:#E06B5F; --dangerSoft:#3D1C19; --chip:#28322E;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#121816; --card:#1B2320; --ink:#E4EAE7; --muted:#9AA8A2; --line:#33403B;
+  --bar:#0E1513; --barInk:#E4EAE7; --vis:#F07E2C; --soft:#3E2716;
+  --ok:#4CB17B; --okSoft:#17352A; --warn:#E0A63D; --warnSoft:#3A2E14; --danger:#E06B5F; --dangerSoft:#3D1C19; --chip:#28322E;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%}
+body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font:400 17px/1.45 Roboto,"Segoe UI",system-ui,Arial,sans-serif;-webkit-text-size-adjust:100%}
+h1,h2,h3,.cond{font-family:var(--cond)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--vis);outline-offset:2px}
+[hidden]{display:none!important}
+header.top{position:sticky;top:0;z-index:20;background:var(--bar);color:var(--barInk);padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;display:flex;align-items:center;gap:10px}
+header.top h1{margin:0;font-size:22px;font-weight:700;line-height:1.1;flex:1;min-width:0}
+header.top h1 small{display:block;font:500 14px/1.2 Roboto,system-ui,sans-serif;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sync{border:0;border-radius:8px;padding:9px 12px;font-weight:600;background:rgba(255,255,255,.12);color:var(--barInk);white-space:nowrap;min-height:44px}
+.sync.pending{background:var(--vis);color:var(--visInk)}
+#updBar{position:sticky;top:0;z-index:25;background:var(--vis);color:var(--visInk);padding:8px 12px;display:flex;gap:10px;align-items:center;justify-content:space-between;font-weight:600}
+#updBar .btn{background:#fff;color:#1A2421;border:0}
+main{max-width:900px;margin:0 auto;padding:12px 12px calc(92px + env(safe-area-inset-bottom,0px))}
+section.tab{display:none}section.tab.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+.card h2{margin:0 0 10px;font-size:21px;font-weight:600;line-height:1.15}
+.hint{color:var(--muted);font-size:15px;margin:-4px 0 10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted);font-weight:500}
+label.f.wide{grid-column:1/-1}
+input[type=text],input[type=number],input[type=url],input[type=search],input:not([type]),select,textarea{
+  width:100%;min-height:46px;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);padding:8px 10px;font-size:18px;color:var(--ink)}
+textarea{min-height:140px;font-size:15px}
+input:focus,select:focus,textarea:focus{border-color:var(--vis);outline:none}
+.chk{display:flex;gap:10px;align-items:center;font-size:16px;min-height:44px}
+.chk input{width:24px;height:24px;accent-color:var(--vis)}
+.btn{border:1.5px solid var(--line);background:var(--card);border-radius:8px;min-height:46px;padding:8px 14px;font-weight:600;cursor:pointer}
+.btn.main{background:var(--vis);border-color:var(--vis);color:var(--visInk)}
+.btn.dark{background:var(--bar);border-color:var(--bar);color:var(--barInk)}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--danger);border-color:var(--danger);background:transparent}
+.btn.big{width:100%;min-height:58px;font-size:20px;font-family:var(--cond);font-weight:700}
+.btn[disabled]{opacity:.5}
+.scanbig{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;width:100%;min-height:150px;border:0;border-radius:14px;background:var(--bar);color:var(--barInk);font:700 26px/1.1 var(--cond);cursor:pointer}
+.scanbig svg{width:56px;height:56px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.stats div{background:var(--card);padding:10px 8px}
+.stats strong{display:block;font:700 30px/1 var(--cond)}
+.stats span{font-size:14px;color:var(--muted)}
+.list{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.it{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);min-height:60px}
+.it:last-child{border-bottom:0}
+.it input[type=checkbox]{width:24px;height:24px;accent-color:var(--vis)}
+.it .nm{font-weight:600;line-height:1.25}
+.it .sub{font-size:14px;color:var(--muted)}
+.it .q{font:700 22px/1 var(--cond);text-align:right;white-space:nowrap}
+.it .q small{font:500 13px Roboto,system-ui,sans-serif;color:var(--muted)}
+.it button.open{all:unset;cursor:pointer;display:block}
+.it button.open:focus-visible{outline:3px solid var(--vis)}
+.low{color:var(--danger)}
+.tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:10px;background:var(--chip);margin-right:4px;white-space:nowrap}
+.tag.in{background:var(--okSoft);color:var(--ok)}.tag.out{background:var(--dangerSoft);color:var(--danger)}.tag.adj{background:var(--warnSoft);color:var(--warn)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.chips button{border:1.5px solid var(--line);background:transparent;border-radius:22px;min-height:40px;padding:4px 14px;font-weight:500}
+.chips button[aria-pressed="true"]{background:var(--bar);border-color:var(--bar);color:var(--barInk)}
+.warn{background:var(--warnSoft);border-left:4px solid var(--warn);padding:8px 10px;border-radius:6px;margin-bottom:8px;font-size:15px}
+.okmsg{background:var(--okSoft);border-left:4px solid var(--ok);padding:8px 10px;border-radius:6px;margin-bottom:8px;font-size:15px}
+.progress{height:12px;background:var(--chip);border-radius:6px;overflow:hidden;margin:8px 0 4px}
+.progress div{height:100%;background:var(--ok);width:0;transition:width .3s}
+.tbl{overflow-x:auto}
+.tbl table{border-collapse:collapse;width:100%;font-size:14px;min-width:420px}
+.tbl th,.tbl td{text-align:left;padding:6px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl th{color:var(--muted);font-weight:500}
+.tbl td.n{text-align:right;white-space:nowrap}
+.muted{color:var(--muted)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.tabs button{border:0;background:transparent;min-height:62px;font:600 17px/1.1 var(--cond);color:var(--muted);border-top:3px solid transparent}
+nav.tabs button.on{color:var(--ink);border-top-color:var(--vis)}
+dialog{border:0;border-radius:14px;padding:0;width:min(560px,94vw);background:var(--card);color:var(--ink);max-height:92vh}
+dialog::backdrop{background:rgba(8,12,10,.6)}
+dialog .dbody{padding:16px;display:flex;flex-direction:column;gap:12px}
+dialog h3{margin:0;font-size:24px}
+dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;border-radius:0;background:#000;color:#fff}
+.cam{position:relative;height:100%;display:flex;flex-direction:column}
+.cam video{flex:1;width:100%;min-height:0;object-fit:cover;background:#000}
+.cam .frame{position:absolute;left:50%;top:42%;width:min(68vw,320px);aspect-ratio:1;transform:translate(-50%,-50%);border:4px solid rgba(255,255,255,.9);border-radius:18px;box-shadow:0 0 0 2000px rgba(0,0,0,.35);pointer-events:none}
+.cam .bar{padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;background:#0E1513}
+.cam .bar .row{flex-wrap:nowrap}
+.cam .bar input{background:#1B2320;color:#fff;border-color:#33403B}
+.cam .msg{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:12px;right:12px;text-align:center;font-weight:600;text-shadow:0 1px 3px #000}
+.qty{display:grid;grid-template-columns:56px 1fr 56px;gap:8px}
+.qty button{font-size:26px;font-weight:700}
+.qty input{text-align:center;font:700 26px var(--cond)}
+.big-stock{font:700 44px/1 var(--cond)}
+.labelprev{background:#fff;border:1px dashed #999;border-radius:6px;padding:8px;overflow:auto;max-height:46vh}
+#toast{position:fixed;left:50%;bottom:calc(82px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--bar);color:var(--barInk);padding:10px 16px;border-radius:8px;font-size:15px;max-width:92vw;z-index:60;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.on{opacity:1}
+/* этикетки */
+#print{display:none}
+.lbl{box-sizing:border-box;overflow:hidden;display:flex;gap:2mm;align-items:center;background:#fff;color:#000;font-family:Roboto,Arial,sans-serif;padding:1.5mm 2mm;break-inside:avoid;page-break-inside:avoid}
+.lbl svg{flex:none;height:100%;width:auto;aspect-ratio:1}
+.lbl .tx{min-width:0;flex:1;display:flex;flex-direction:column;gap:.6mm;line-height:1.12}
+.lbl .cd{font:700 13pt/1 "Roboto Condensed","Arial Narrow",Arial,sans-serif;letter-spacing:.5px}
+.lbl .nm2{font-size:8.5pt;font-weight:600;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.lbl .ar{font-size:7.5pt}
+.lbl .lc{font:700 9pt "Roboto Condensed","Arial Narrow",Arial,sans-serif}
+.lbl.loc .cd{font-size:22pt}
+.sheet{display:grid;background:#fff}
+@media print{
+  body{background:#fff}
+  header.top,main,nav.tabs,#toast,dialog,#updBar{display:none!important}
+  #print{display:block}
+}
+</style>
+<style id="pageStyle"></style>
+</head>
+<body>
+<header class="top">
+  <h1>Склад<small id="who">учёт и инвентаризация</small></h1>
+  <button class="sync" id="syncBtn" type="button">Отправить</button>
+</header>
+<div id="updBar" hidden><span>Вышло обновление приложения</span><button class="btn" id="updBtn" type="button">Перезапустить</button></div>
+
+<main>
+  <!-- СКАН -->
+  <section class="tab on" id="tab-scan">
+    <div class="card" id="installCard" hidden>
+      <h2>Установить на телефон</h2>
+      <p class="hint" id="installHint" style="margin:0 0 8px"></p>
+      <div class="row"><button class="btn main" id="installBtn" type="button" hidden>Установить приложение</button><button class="btn ghost" id="installHide" type="button">Позже</button></div>
+    </div>
+    <button class="scanbig" id="scanBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3"/><rect x="7" y="7" width="4" height="4"/><rect x="13" y="13" width="4" height="4"/><path d="M13 7h4v4M7 13v4h4"/></svg>
+      Сканировать этикетку
+    </button>
+    <div class="card" style="margin-top:12px">
+      <label class="f">Или введи код с этикетки<input id="codeIn" type="text" autocapitalize="characters" autocomplete="off" placeholder="например K7F3QX"></label>
+      <button class="btn" id="codeGo" type="button" style="margin-top:8px">Открыть</button>
+    </div>
+    <div class="stats" id="scanStats"></div>
+    <div id="scanLow"></div>
+    <div id="scanLast"></div>
+  </section>
+
+  <!-- ТОВАРЫ -->
+  <section class="tab" id="tab-items">
+    <div class="row" style="margin-bottom:10px">
+      <input id="q" type="search" placeholder="Поиск: название, код, артикул, адрес" style="flex:1;min-width:180px" aria-label="Поиск">
+      <button class="btn main" id="addItem" type="button">Добавить</button>
+    </div>
+    <div class="chips" id="flt"></div>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn" id="selAll" type="button">Выбрать все</button>
+      <button class="btn dark" id="printSel" type="button">Печать этикеток</button>
+      <button class="btn" id="printLocs" type="button">Этикетки ячеек</button>
+    </div>
+    <div id="itemList"></div>
+    <div class="row">
+      <button class="btn" id="importBtn" type="button">Загрузить список</button>
+      <button class="btn ghost" id="demoBtn" type="button">Пример для показа</button>
+    </div>
+  </section>
+
+  <!-- ИНВЕНТАРИЗАЦИЯ -->
+  <section class="tab" id="tab-inv"><div id="invBody"></div></section>
+
+  <!-- ЖУРНАЛ -->
+  <section class="tab" id="tab-log">
+    <div class="card">
+      <h2>Кто работает</h2>
+      <div class="grid2">
+        <label class="f">ФИО<input id="s-user" type="text"></label>
+        <label class="f">Склад<input id="s-wh" type="text" placeholder="например Склад ГСМ, участок 2"></label>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Подключение к Google Таблице</h2>
+      <p class="hint" id="connState" style="margin:0 0 10px"></p>
+      <label class="f">Адрес скрипта таблицы<input id="cfg-url" type="url" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec"></label>
+      <label class="f" style="margin-top:8px">Ключ доступа<input id="cfg-key" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <div class="row" style="margin-top:10px">
+        <button class="btn main" id="cfg-test" type="button">Проверить и обновить</button>
+        <button class="btn" id="cfg-share" type="button">Ссылка для сотрудников</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Выгрузка для Excel</h2>
+      <div class="row"><button class="btn" id="csvStock" type="button">Остатки</button><button class="btn" id="csvMoves" type="button">Движения</button></div>
+    </div>
+    <h2 class="cond" style="margin:16px 2px 8px;font-size:22px">Последние движения</h2>
+    <div id="moveList"></div>
+  </section>
+</main>
+
+<nav class="tabs" aria-label="Разделы">
+  <button type="button" data-tab="scan" class="on">Скан</button>
+  <button type="button" data-tab="items">Товары</button>
+  <button type="button" data-tab="inv">Инвентар.</button>
+  <button type="button" data-tab="log">Журнал</button>
+</nav>
+
+<!-- камера -->
+<dialog id="dlgCam" class="full"><div class="cam">
+  <video id="video" playsinline muted></video>
+  <div class="frame"></div>
+  <div class="msg" id="camMsg">Наведи камеру на QR-код этикетки</div>
+  <div class="bar">
+    <div class="row"><input id="camCode" type="text" autocapitalize="characters" placeholder="Код вручную"><button class="btn main" id="camGo" type="button">ОК</button></div>
+    <button class="btn" id="camClose" type="button">Закрыть</button>
+  </div>
+</div></dialog>
+
+<!-- карточка товара -->
+<dialog id="dlgItem"><div class="dbody" id="itemBody"></div></dialog>
+
+<!-- операция -->
+<dialog id="dlgMove"><div class="dbody">
+  <h3 id="mv-title">Операция</h3>
+  <p class="hint" id="mv-sub" style="margin:0"></p>
+  <div class="qty" id="mv-qtyrow"><button class="btn" type="button" id="mv-minus" aria-label="Меньше">−</button><input id="mv-qty" inputmode="decimal" aria-label="Количество"><button class="btn" type="button" id="mv-plus" aria-label="Больше">+</button></div>
+  <label class="f" id="mv-whomL">Кому, куда<input id="mv-whom" type="text" list="whomList" placeholder="станок № 2, Иванов, участок"></label>
+  <datalist id="whomList"></datalist>
+  <label class="f" id="mv-locL">Новый адрес хранения<input id="mv-loc" type="text" list="locList" autocapitalize="characters"></label>
+  <datalist id="locList"></datalist>
+  <label class="f">Примечание<input id="mv-note" type="text"></label>
+  <div class="row" style="justify-content:flex-end"><button class="btn ghost" id="mv-cancel" type="button">Отмена</button><button class="btn main" id="mv-ok" type="button">Записать</button></div>
+</div></dialog>
+
+<!-- редактирование товара -->
+<dialog id="dlgEdit"><div class="dbody">
+  <h3 id="ed-title">Новая позиция</h3>
+  <label class="f">Наименование<input id="ed-name" type="text"></label>
+  <div class="grid2">
+    <label class="f">Артикул, каталожный №<input id="ed-art" type="text"></label>
+    <label class="f">Единица<select id="ed-unit"><option>шт</option><option>компл</option><option>м</option><option>л</option><option>кг</option><option>уп</option><option>рул</option></select></label>
+    <label class="f">Адрес хранения<input id="ed-loc" type="text" list="locList" autocapitalize="characters" placeholder="А-01-03"></label>
+    <label class="f">Группа<input id="ed-cat" type="text" list="catList" placeholder="Буровой инструмент"></label>
+    <label class="f">Минимальный остаток<input id="ed-min" inputmode="decimal"></label>
+    <label class="f" id="ed-qtyL">Остаток сейчас<input id="ed-qty" inputmode="decimal" placeholder="0"></label>
+  </div>
+  <datalist id="catList"></datalist>
+  <label class="f">Примечание<input id="ed-note" type="text"></label>
+  <div class="row" style="justify-content:space-between">
+    <button class="btn danger" id="ed-del" type="button">Удалить</button>
+    <div class="row"><button class="btn ghost" id="ed-cancel" type="button">Отмена</button><button class="btn main" id="ed-ok" type="button">Сохранить</button></div>
+  </div>
+</div></dialog>
+
+<!-- печать -->
+<dialog id="dlgPrint"><div class="dbody">
+  <h3 id="pr-title">Печать этикеток</h3>
+  <label class="f">Формат<select id="pr-fmt">
+    <option value="a4-24">Лист A4, 24 этикетки 70×37 мм</option>
+    <option value="a4-40">Лист A4, 40 этикеток 52,5×29,7 мм</option>
+    <option value="t58x40">Термопринтер 58×40 мм</option>
+    <option value="t43x25">Термопринтер 43×25 мм</option>
+  </select></label>
+  <label class="f">Копий каждой<input id="pr-copies" inputmode="numeric" value="1"></label>
+  <p class="hint" id="pr-info" style="margin:0"></p>
+  <div class="labelprev" id="pr-prev"></div>
+  <p class="hint" style="margin:0">При печати выбери масштаб 100% и отключи поля и колонтитулы. Код на этикетке читает любой телефон, даже без приложения: обычная камера откроет карточку товара.</p>
+  <div class="row" style="justify-content:flex-end"><button class="btn ghost" id="pr-cancel" type="button">Отмена</button><button class="btn main" id="pr-go" type="button">Печать</button></div>
+</div></dialog>
+
+<!-- импорт -->
+<dialog id="dlgImport"><div class="dbody">
+  <h3>Загрузить список</h3>
+  <p class="hint" style="margin:0">По одной позиции в строке, через точку с запятой или табуляцию (можно скопировать из Excel):<br>Наименование; Артикул; Единица; Адрес; Остаток; Мин. остаток</p>
+  <textarea id="im-text" placeholder="Коронка 115 мм; JK-B115; шт; А-01-01; 12; 4"></textarea>
+  <div class="row" style="justify-content:flex-end"><button class="btn ghost" id="im-cancel" type="button">Отмена</button><button class="btn main" id="im-ok" type="button">Загрузить</button></div>
+</div></dialog>
+
+<!-- подсчёт при инвентаризации -->
+<dialog id="dlgCount"><div class="dbody">
+  <h3 id="ct-title">Подсчёт</h3>
+  <p class="hint" id="ct-sub" style="margin:0"></p>
+  <div class="qty"><button class="btn" type="button" id="ct-minus" aria-label="Меньше">−</button><input id="ct-qty" inputmode="decimal" aria-label="Фактическое количество"><button class="btn" type="button" id="ct-plus" aria-label="Больше">+</button></div>
+  <label class="chk"><input type="checkbox" id="ct-next" checked> Сразу сканировать следующую</label>
+  <div class="row" style="justify-content:flex-end"><button class="btn ghost" id="ct-cancel" type="button">Отмена</button><button class="btn main" id="ct-ok" type="button">Записать факт</button></div>
+</div></dialog>
+
+<div id="print"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+/* Минимальный генератор QR-кода: байтовый режим, уровень коррекции M, версии 1–20. */
+const QR=(()=>{
+  const ECC_M=[-1,10,16,26,18,24,16,18,22,22,26,30,22,22,24,24,28,28,26,26,26];
+  const BLK_M=[-1,1,1,1,2,2,4,4,4,5,5,5,8,9,9,10,10,11,13,14,16];
+  const rawMods=v=>{let r=(16*v+128)*v+64;if(v>=2){const n=Math.floor(v/7)+2;r-=(25*n-10)*n-55;if(v>=7)r-=36;}return r;};
+  const dataCap=v=>Math.floor(rawMods(v)/8)-ECC_M[v]*BLK_M[v];
+  const gmul=(x,y)=>{let z=0;for(let i=7;i>=0;i--){z=(z<<1)^((z>>>7)*0x11D);z^=((y>>>i)&1)*x;}return z&255;};
+  function rsDiv(d){const r=new Array(d).fill(0);r[d-1]=1;let root=1;
+    for(let i=0;i<d;i++){for(let j=0;j<r.length;j++){r[j]=gmul(r[j],root);if(j+1<r.length)r[j]^=r[j+1];}root=gmul(root,2);}return r;}
+  function rsRem(data,div){const r=new Array(div.length).fill(0);
+    for(const b of data){const f=b^r.shift();r.push(0);div.forEach((c,i)=>r[i]^=gmul(c,f));}return r;}
+  function utf8(s){return Array.from(new TextEncoder().encode(s));}
+  function alignPos(v,size){if(v===1)return[];const n=Math.floor(v/7)+2;const step=Math.ceil((v*4+4)/(n*2-2))*2;
+    const r=[6];for(let p=size-7;r.length<n;p-=step)r.splice(1,0,p);return r;}
+  function encode(text){
+    const bytes=utf8(text);let v=1;
+    for(;v<=20;v++){const cc=v<10?8:16;if(4+cc+bytes.length*8<=dataCap(v)*8)break;}
+    if(v>20)throw new Error('QR: слишком длинный текст');
+    const size=v*4+17,cc=v<10?8:16;
+    // биты данных
+    const bits=[];const put=(val,n)=>{for(let i=n-1;i>=0;i--)bits.push((val>>>i)&1);};
+    put(4,4);put(bytes.length,cc);bytes.forEach(b=>put(b,8));
+    const cap=dataCap(v)*8;put(0,Math.min(4,cap-bits.length));while(bits.length%8)bits.push(0);
+    for(let pad=0xEC;bits.length<cap;pad^=0xEC^0x11)put(pad,8);
+    const data=[];for(let i=0;i<bits.length;i+=8){let b=0;for(let j=0;j<8;j++)b=(b<<1)|bits[i+j];data.push(b);}
+    // блоки и коррекция
+    const nb=BLK_M[v],ecl=ECC_M[v],raw=Math.floor(rawMods(v)/8),nShort=nb-raw%nb,shortLen=Math.floor(raw/nb);
+    const div=rsDiv(ecl),blocks=[];
+    for(let i=0,k=0;i<nb;i++){const len=shortLen-ecl+(i<nShort?0:1);const dat=data.slice(k,k+len);k+=len;
+      const ec=rsRem(dat,div);if(i<nShort)dat.push(0);blocks.push(dat.concat(ec));}
+    const cw=[];for(let i=0;i<blocks[0].length;i++)for(let j=0;j<nb;j++){if(i!==shortLen-ecl||j>=nShort)cw.push(blocks[j][i]);}
+    // матрица
+    const M=[],F=[];for(let y=0;y<size;y++){M.push(new Array(size).fill(false));F.push(new Array(size).fill(false));}
+    const setF=(x,y,d)=>{M[y][x]=d;F[y][x]=true;};
+    for(let i=0;i<size;i++){setF(6,i,i%2===0);setF(i,6,i%2===0);}
+    const finder=(cx,cy)=>{for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){const x=cx+dx,y=cy+dy;
+      if(x>=0&&x<size&&y>=0&&y<size){const d=Math.max(Math.abs(dx),Math.abs(dy));setF(x,y,d!==2&&d!==4);}}};
+    finder(3,3);finder(size-4,3);finder(3,size-4);
+    const ap=alignPos(v,size),na=ap.length;
+    for(let i=0;i<na;i++)for(let j=0;j<na;j++){if((i===0&&j===0)||(i===0&&j===na-1)||(i===na-1&&j===0))continue;
+      for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++)setF(ap[i]+dx,ap[j]+dy,Math.max(Math.abs(dx),Math.abs(dy))!==1);}
+    const drawFormat=mask=>{const d=(0<<3)|mask;let r=d;for(let i=0;i<10;i++)r=(r<<1)^((r>>>9)*0x537);
+      const b=((d<<10)|r)^0x5412,g=i=>((b>>>i)&1)===1;
+      for(let i=0;i<=5;i++)setF(8,i,g(i));setF(8,7,g(6));setF(8,8,g(7));setF(7,8,g(8));
+      for(let i=9;i<15;i++)setF(14-i,8,g(i));
+      for(let i=0;i<8;i++)setF(size-1-i,8,g(i));for(let i=8;i<15;i++)setF(8,size-15+i,g(i));setF(8,size-8,true);};
+    drawFormat(0);
+    if(v>=7){let r=v;for(let i=0;i<12;i++)r=(r<<1)^((r>>>11)*0x1F25);const b=(v<<12)|r;
+      for(let i=0;i<18;i++){const bit=((b>>>i)&1)===1,a=size-11+i%3,c=Math.floor(i/3);setF(a,c,bit);setF(c,a,bit);}}
+    let i=0;
+    for(let right=size-1;right>=1;right-=2){if(right===6)right=5;
+      for(let vert=0;vert<size;vert++)for(let j=0;j<2;j++){const x=right-j,up=((right+1)&2)===0,y=up?size-1-vert:vert;
+        if(!F[y][x]&&i<cw.length*8){M[y][x]=((cw[i>>>3]>>>(7-(i&7)))&1)===1;i++;}}}
+    const maskFn=[(x,y)=>(x+y)%2===0,(x,y)=>y%2===0,(x,y)=>x%3===0,(x,y)=>(x+y)%3===0,
+      (x,y)=>(Math.floor(x/3)+Math.floor(y/2))%2===0,(x,y)=>x*y%2+x*y%3===0,(x,y)=>(x*y%2+x*y%3)%2===0,(x,y)=>((x+y)%2+x*y%3)%2===0];
+    const applyMask=m=>{for(let y=0;y<size;y++)for(let x=0;x<size;x++)if(!F[y][x]&&maskFn[m](x,y))M[y][x]=!M[y][x];};
+    const penalty=()=>{let p=0;
+      const line=get=>{let run=1;for(let k=1;k<size;k++){if(get(k)===get(k-1)){run++;if(run===5)p+=3;else if(run>5)p++;}else run=1;}
+        for(let k=0;k+10<size;k++){const s=[];for(let t=0;t<11;t++)s.push(get(k+t)?1:0);const a=s.join('');
+          if(a==='10111010000'||a==='00001011101')p+=40;}};
+      for(let y=0;y<size;y++)line(k=>M[y][k]);for(let x=0;x<size;x++)line(k=>M[k][x]);
+      for(let y=0;y<size-1;y++)for(let x=0;x<size-1;x++){const c=M[y][x];if(c===M[y][x+1]&&c===M[y+1][x]&&c===M[y+1][x+1])p+=3;}
+      let dark=0;M.forEach(r=>r.forEach(c=>{if(c)dark++;}));p+=Math.floor(Math.abs(dark*20-size*size*10)/(size*size))*10;return p;};
+    let best=0,bp=Infinity;
+    for(let m=0;m<8;m++){applyMask(m);drawFormat(m);const pp=penalty();if(pp<bp){bp=pp;best=m;}applyMask(m);}
+    applyMask(best);drawFormat(best);
+    return{size,modules:M,version:v};
+  }
+  function svg(text,opts){opts=opts||{};const q=encode(text),qz=opts.quiet==null?4:opts.quiet,n=q.size+qz*2;let d='';
+    for(let y=0;y<q.size;y++){let x=0;while(x<q.size){if(q.modules[y][x]){let w=1;while(x+w<q.size&&q.modules[y][x+w])w++;d+=`M${x+qz} ${y+qz}h${w}v1h-${w}z`;x+=w;}else x++;}}
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"${opts.cls?` class="${opts.cls}"`:''}><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;}
+  return{encode,svg};
+})();
+</script>
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
+const num=(v,d=0)=>{const n=parseFloat(String(v==null?'':v).replace(/\s/g,'').replace(',','.'));return isFinite(n)?n:d;};
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fq=n=>{const r=Math.round(n*1000)/1000;return r.toLocaleString('ru-RU');};
+const rid=()=>Math.random().toString(36).slice(2,10);
+const tm=iso=>{try{return new Date(iso).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}};
+const today=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);};
+let toastT;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),3200);}
+const BASE=location.origin+location.pathname;
+
+/* ---------- хранение ---------- */
+const LS='sklad-v1',SH='sklad-shared-v1';
+let S;try{S=JSON.parse(localStorage.getItem(LS)||'null');}catch(e){S=null;}
+if(!S||!S.items)S={deviceId:rid(),user:'',wh:'',items:{},moves:{},invs:{},dItems:{},dMoves:{},dInvs:{},cfg:{url:'',key:''},lastSync:'',tab:'scan',invActive:null,recentWhom:[]};
+['items','moves','invs','dItems','dMoves','dInvs','cfg'].forEach(k=>{if(!S[k]||typeof S[k]!=='object')S[k]={};});
+if(!Array.isArray(S.recentWhom))S.recentWhom=[];
+function save(){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){toast('Память телефона переполнена — отправь данные в таблицу');}}
+let shared={items:[],moves:[],invs:[],at:''};
+try{const c=JSON.parse(localStorage.getItem(SH)||'null');if(c)shared=Object.assign(shared,c);}catch(e){}
+
+/* ---------- объединённое представление ---------- */
+let VIEW=null;
+function view(){if(VIEW)return VIEW;
+  const items={};shared.items.forEach(i=>{if(i&&i.code)items[i.code]=i;});
+  Object.values(S.items).forEach(i=>{const o=items[i.code];if(!o||S.dItems[i.code]||(i.updated||'')>=(o.updated||''))items[i.code]=i;});
+  Object.keys(items).forEach(k=>{if(items[k].deleted)delete items[k];});
+  const moves={};shared.moves.forEach(m=>{if(m&&m.id)moves[m.id]=m;});Object.values(S.moves).forEach(m=>moves[m.id]=m);
+  const invs={};shared.invs.forEach(v=>{if(v&&v.id)invs[v.id]=v;});Object.values(S.invs).forEach(v=>{const o=invs[v.id];if(!o||S.dInvs[v.id]||(v.updated||'')>=(o.updated||''))invs[v.id]=v;});
+  const stock={},last={};
+  Object.values(moves).forEach(m=>{const s=m.type==='out'?-num(m.qty):m.type==='move'?0:num(m.qty);stock[m.code]=(stock[m.code]||0)+s;
+    if(!last[m.code]||(m.at||'')>(last[m.code].at||''))last[m.code]=m;});
+  return VIEW={items,moves,invs,stock,last};}
+function dirty(){VIEW=null;save();renderStatus();}
+const stockOf=c=>Math.round((view().stock[c]||0)*1000)/1000;
+const ALPH='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+function newCode(){const V=view();for(;;){let c='K';for(let i=0;i<5;i++)c+=ALPH[Math.floor(Math.random()*ALPH.length)];if(!V.items[c])return c;}}
+function addMove(m){m.id='m-'+Date.now().toString(36)+'-'+rid();m.at=new Date().toISOString();m.by=S.user||'';m.dev=S.deviceId;S.moves[m.id]=m;S.dMoves[m.id]=1;dirty();return m;}
+function putItem(it){it.updated=new Date().toISOString();it.by=S.user||'';S.items[it.code]=it;S.dItems[it.code]=(S.dItems[it.code]|0)+1;dirty();}
+const itemURL=c=>BASE+'#i='+encodeURIComponent(c),locURL=l=>BASE+'#l='+encodeURIComponent(l);
+const unitOf=it=>it&&it.unit||'шт';
+
+/* ---------- шапка ---------- */
+function renderWho(){$('#who').textContent=[S.wh||'учёт и инвентаризация',S.user].filter(Boolean).join(', ');}
+let syncing=false;
+const pending=()=>Object.keys(S.dItems).length+Object.keys(S.dMoves).length+Object.keys(S.dInvs).length;
+function renderStatus(){const b=$('#syncBtn'),n=pending();b.classList.toggle('pending',n>0);b.disabled=syncing;
+  b.textContent=syncing?'Отправка…':n?(navigator.onLine?`Отправить (${n})`:`Не отправлено (${n})`):(S.cfg.url?'Всё отправлено':'Таблица');}
+
+/* ---------- вкладка «Скан» ---------- */
+function renderScan(){const V=view(),its=Object.values(V.items);
+  const low=its.filter(i=>num(i.min)>0&&stockOf(i.code)<num(i.min));
+  $('#scanStats').innerHTML=`<div><strong>${its.length}</strong><span>позиций</span></div><div><strong>${new Set(its.map(i=>i.loc).filter(Boolean)).size}</strong><span>адресов</span></div><div><strong class="${low.length?'low':''}">${low.length}</strong><span>ниже минимума</span></div>`;
+  $('#scanLow').innerHTML=low.length?`<div class="card"><h2>Пора заказать</h2>${low.slice(0,8).map(i=>`<div class="it" style="grid-template-columns:1fr auto;padding:8px 0"><button class="open" type="button" data-open="${esc(i.code)}"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.code)}${i.loc?' · '+esc(i.loc):''}</div></button><div class="q low">${fq(stockOf(i.code))}<small> / мин ${fq(num(i.min))} ${esc(unitOf(i))}</small></div></div>`).join('')}</div>`:'';
+  const mv=Object.values(V.moves).sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,6);
+  $('#scanLast').innerHTML=mv.length?`<div class="card"><h2>Последние операции</h2>${mv.map(moveRow).join('')}</div>`
+    :(its.length?'':'<div class="card"><h2>С чего начать</h2><ol style="margin:0;padding-left:22px"><li>Вкладка «Товары»: добавь позиции или загрузи список из Excel.</li><li>Напечатай этикетки и наклей на ячейки и товар.</li><li>Дальше всё через «Сканировать»: приход, выдача, перемещение, инвентаризация.</li></ol></div>');
+}
+const TYPES={in:'Приход',out:'Расход',move:'Перемещение',adj:'Инвентаризация'};
+function moveRow(m){const it=view().items[m.code];const s=m.type==='out'?'−':m.type==='move'?'':'+';
+  const q=m.type==='move'?`${esc(m.from||'—')} → ${esc(m.to||'')}`:`${s}${fq(Math.abs(num(m.qty)))} ${esc(unitOf(it))}`;
+  return `<div class="it" style="grid-template-columns:1fr auto;padding:8px 0"><button class="open" type="button" data-open="${esc(m.code)}"><div class="nm">${esc(it?it.name:m.code)}</div><div class="sub"><span class="tag ${m.type==='in'?'in':m.type==='out'?'out':m.type==='adj'?'adj':''}">${TYPES[m.type]||m.type}</span>${m.whom?esc(m.whom)+' · ':''}${esc(m.by||'')} · ${tm(m.at)}${S.dMoves[m.id]?' · не отправлено':''}</div></button><div class="q" style="font-size:18px">${q}</div></div>`;}
+document.addEventListener('click',ev=>{const o=ev.target.closest('[data-open]');if(o){ev.preventDefault();openItem(o.dataset.open);}});
+$('#codeGo').onclick=()=>{const c=$('#codeIn').value.trim();if(c)handleCode(c);};
+$('#codeIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('#codeGo').click();});
+
+/* ---------- разбор кода ---------- */
+function parseCode(raw){raw=String(raw||'').trim();
+  const m=/#([il])=([^&]+)/.exec(raw);if(m){const v=decodeURIComponent(m[2]);return m[1]==='i'?{item:v.toUpperCase()}:{loc:v};}
+  return{item:raw.toUpperCase().replace(/\s/g,'')};}
+function handleCode(raw){const p=parseCode(raw),V=view();
+  if(p.loc){showLoc(p.loc);return;}
+  let c=p.item;if(!V.items[c]){const f=Object.values(V.items).find(i=>(i.art||'').toUpperCase().replace(/\s/g,'')===c);if(f)c=f.code;}
+  if(!V.items[c]){toast('Код '+p.item+' не найден на этом складе');return;}
+  if(scanMode==='count'&&activeInv()){openCount(c);return;}
+  openItem(c);}
+function showLoc(loc){setTab('items');$('#q').value=loc;renderItems();toast('Ячейка '+loc);}
+
+/* ---------- камера ---------- */
+let stream=null,scanTimer=null,detector=null,scanMode='card',lastHit='';
+async function openScan(mode){scanMode=mode||'card';$('#camCode').value='';$('#dlgCam').showModal();
+  $('#camMsg').textContent=scanMode==='count'?'Инвентаризация: наведи на этикетку':'Наведи камеру на QR-код этикетки';
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});}
+  catch(e){$('#camMsg').textContent='Нет доступа к камере. Разреши камеру для сайта или введи код вручную.';return;}
+  const v=$('#video');v.srcObject=stream;try{await v.play();}catch(e){}
+  if('BarcodeDetector' in window){try{const f=await BarcodeDetector.getSupportedFormats();if(f.includes('qr_code'))detector=new BarcodeDetector({formats:['qr_code']});}catch(e){}}
+  if(!detector&&!window.jsQR){await loadJsQR();}
+  if(!detector&&!window.jsQR){$('#camMsg').textContent='Этот телефон не распознаёт код внутри приложения. Отсканируй обычной камерой телефона или введи код вручную.';return;}
+  lastHit='';loopScan();}
+function loadJsQR(){return new Promise(res=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';s.onload=()=>res();s.onerror=()=>res();document.head.appendChild(s);setTimeout(res,6000);});}
+const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
+async function loopScan(){if(!stream)return;const v=$('#video');let val='';
+  try{if(v.readyState>=2){
+    if(detector){const r=await detector.detect(v);if(r&&r[0])val=r[0].rawValue;}
+    else if(window.jsQR){const w=Math.min(v.videoWidth,800),h=Math.round(v.videoHeight*w/v.videoWidth);cv.width=w;cv.height=h;cx.drawImage(v,0,0,w,h);
+      const r=window.jsQR(cx.getImageData(0,0,w,h).data,w,h,{inversionAttempts:'dontInvert'});if(r)val=r.data;}}}catch(e){}
+  if(val&&val!==lastHit){lastHit=val;if(navigator.vibrate)navigator.vibrate(60);closeScan();handleCode(val);return;}
+  scanTimer=setTimeout(loopScan,180);}
+function closeScan(){clearTimeout(scanTimer);if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}if($('#dlgCam').open)$('#dlgCam').close();}
+$('#scanBtn').onclick=()=>openScan('card');
+$('#camClose').onclick=closeScan;$('#dlgCam').addEventListener('cancel',()=>closeScan());
+$('#camGo').onclick=()=>{const c=$('#camCode').value.trim();if(!c)return;closeScan();handleCode(c);};
+
+/* ---------- карточка ---------- */
+let cur=null;
+function openItem(code){const V=view(),it=V.items[code];if(!it){toast('Позиция не найдена');return;}cur=code;
+  const st=stockOf(code),low=num(it.min)>0&&st<num(it.min);
+  const mv=Object.values(V.moves).filter(m=>m.code===code).sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,6);
+  $('#itemBody').innerHTML=`<div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap"><div><h3>${esc(it.name)}</h3><div class="muted" style="font-size:15px">${esc(it.code)}${it.art?' · арт. '+esc(it.art):''}${it.cat?' · '+esc(it.cat):''}</div></div><button class="btn ghost" type="button" id="it-close" aria-label="Закрыть">✕</button></div>
+  <div class="row" style="justify-content:space-between"><div><div class="big-stock ${low?'low':''}">${fq(st)} <span style="font-size:22px">${esc(unitOf(it))}</span></div><div class="muted" style="font-size:14px">${low?'Ниже минимума '+fq(num(it.min)):num(it.min)?'Минимум '+fq(num(it.min)):'Остаток'}</div></div>
+  <div style="text-align:right"><div class="cond" style="font-size:24px;font-weight:700">${esc(it.loc||'—')}</div><div class="muted" style="font-size:14px">адрес хранения</div></div></div>
+  ${it.note?`<p style="margin:0">${esc(it.note)}</p>`:''}
+  <div class="grid2"><button class="btn main big" type="button" data-op="in">Приход</button><button class="btn main big" type="button" data-op="out">Расход</button><button class="btn" type="button" data-op="move">Переместить</button><button class="btn" type="button" id="it-edit">Изменить</button></div>
+  <button class="btn" type="button" id="it-print">Напечатать этикетку</button>
+  ${mv.length?`<div><h3 style="font-size:18px;margin:4px 0">Движения</h3>${mv.map(moveRow).join('')}</div>`:''}`;
+  if(!$('#dlgItem').open)$('#dlgItem').showModal();}
+$('#itemBody').addEventListener('click',ev=>{const t=ev.target.closest('button');if(!t)return;
+  if(t.id==='it-close'){$('#dlgItem').close();return;}
+  if(t.dataset.op){openMove(t.dataset.op);return;}
+  if(t.id==='it-edit'){openEdit(cur);return;}
+  if(t.id==='it-print'){$('#dlgItem').close();openPrint([cur],'items');}});
+
+/* ---------- операции ---------- */
+let op='in';
+function openMove(o){op=o;const it=view().items[cur];
+  $('#mv-title').textContent=TYPES[o];$('#mv-sub').textContent=`${it.name} · остаток ${fq(stockOf(cur))} ${unitOf(it)}`;
+  $('#mv-qtyrow').hidden=o==='move';$('#mv-whomL').hidden=o==='move';$('#mv-locL').hidden=o!=='move';
+  $('#mv-whomL').firstChild.textContent=o==='in'?'От кого (поставщик, накладная)':'Кому, куда (станок, ФИО, участок)';
+  $('#mv-whom').placeholder=o==='in'?'накладная № 125 от снабжения':'станок № 2, Иванов';
+  $('#mv-qty').value='1';$('#mv-whom').value='';$('#mv-note').value='';$('#mv-loc').value=it.loc||'';
+  $('#whomList').innerHTML=S.recentWhom.map(w=>`<option value="${esc(w)}">`).join('');
+  fillLocList();$('#dlgMove').showModal();}
+function fillLocList(){$('#locList').innerHTML=[...new Set(Object.values(view().items).map(i=>i.loc).filter(Boolean))].sort().map(l=>`<option value="${esc(l)}">`).join('');}
+const step=(sel,d)=>{const e=$(sel);e.value=String(Math.max(0,num(e.value)+d)).replace('.',',');};
+$('#mv-minus').onclick=()=>step('#mv-qty',-1);$('#mv-plus').onclick=()=>step('#mv-qty',1);
+$('#mv-cancel').onclick=()=>$('#dlgMove').close();
+$('#mv-ok').onclick=()=>{const it=view().items[cur];
+  if(op==='move'){const to=$('#mv-loc').value.trim().toUpperCase();if(!to){toast('Укажи новый адрес');return;}if(to===(it.loc||'')){toast('Адрес не изменился');return;}
+    addMove({code:cur,type:'move',qty:0,from:it.loc||'',to,note:$('#mv-note').value.trim()});putItem(Object.assign({},it,{loc:to}));toast('Перемещено в '+to);}
+  else{const q=num($('#mv-qty').value,0);if(!(q>0)){toast('Укажи количество');return;}
+    if(op==='out'&&q>stockOf(cur)+1e-9&&!$('#mv-ok').dataset.force){$('#mv-ok').dataset.force='1';$('#mv-ok').textContent='Остатка не хватает — всё равно записать';setTimeout(()=>{delete $('#mv-ok').dataset.force;$('#mv-ok').textContent='Записать';},4000);return;}
+    const whom=$('#mv-whom').value.trim();
+    if(whom){S.recentWhom=[whom].concat(S.recentWhom.filter(w=>w!==whom)).slice(0,12);}
+    addMove({code:cur,type:op,qty:q,whom,note:$('#mv-note').value.trim()});toast(`${TYPES[op]}: ${fq(q)} ${unitOf(it)}`);}
+  delete $('#mv-ok').dataset.force;$('#mv-ok').textContent='Записать';
+  $('#dlgMove').close();openItem(cur);renderActive();};
+
+/* ---------- редактирование ---------- */
+let editCode=null;
+function openEdit(code){editCode=code||null;const it=code?view().items[code]:{unit:'шт'};
+  $('#ed-title').textContent=code?'Изменить позицию':'Новая позиция';
+  [['name','name'],['art','art'],['loc','loc'],['cat','cat'],['min','min'],['note','note']].forEach(([f,k])=>$('#ed-'+f).value=it[k]==null?'':it[k]);
+  $('#ed-unit').value=it.unit||'шт';$('#ed-qtyL').hidden=!!code;$('#ed-qty').value='';$('#ed-del').hidden=!code;
+  $('#catList').innerHTML=[...new Set(Object.values(view().items).map(i=>i.cat).filter(Boolean))].map(c=>`<option value="${esc(c)}">`).join('');fillLocList();
+  if($('#dlgItem').open)$('#dlgItem').close();$('#dlgEdit').showModal();}
+$('#ed-cancel').onclick=()=>{$('#dlgEdit').close();if(editCode)openItem(editCode);};
+$('#ed-ok').onclick=()=>{const name=$('#ed-name').value.trim();if(!name){toast('Нужно наименование');return;}
+  const base=editCode?view().items[editCode]:{code:newCode(),created:new Date().toISOString()};
+  const it=Object.assign({},base,{name,art:$('#ed-art').value.trim(),unit:$('#ed-unit').value,loc:$('#ed-loc').value.trim().toUpperCase(),cat:$('#ed-cat').value.trim(),min:$('#ed-min').value.trim(),note:$('#ed-note').value.trim()});
+  putItem(it);const q=num($('#ed-qty').value,0);if(!editCode&&q>0)addMove({code:it.code,type:'in',qty:q,whom:'начальный остаток'});
+  $('#dlgEdit').close();renderActive();openItem(it.code);toast(editCode?'Сохранено':'Позиция '+it.code+' создана');};
+$('#ed-del').onclick=()=>{const b=$('#ed-del');if(!b.dataset.arm){b.dataset.arm='1';b.textContent='Точно удалить?';setTimeout(()=>{delete b.dataset.arm;b.textContent='Удалить';},4000);return;}
+  delete b.dataset.arm;b.textContent='Удалить';putItem(Object.assign({},view().items[editCode],{deleted:true}));$('#dlgEdit').close();renderActive();toast('Позиция удалена');};
+$('#addItem').onclick=()=>openEdit(null);
+
+/* ---------- вкладка «Товары» ---------- */
+let filt='all';const sel=new Set();
+function renderItems(){const V=view(),q=$('#q').value.trim().toLowerCase();
+  const cats=[...new Set(Object.values(V.items).map(i=>i.cat).filter(Boolean))].sort();
+  $('#flt').innerHTML=[['all','Все'],['low','Ниже минимума'],['zero','Нет в наличии']].concat(cats.map(c=>['c:'+c,c])).map(([k,l])=>`<button type="button" data-f="${esc(k)}" aria-pressed="${filt===k}">${esc(l)}</button>`).join('');
+  let its=Object.values(V.items);
+  if(q)its=its.filter(i=>[i.name,i.code,i.art,i.loc,i.cat].some(x=>String(x||'').toLowerCase().includes(q)));
+  if(filt==='low')its=its.filter(i=>num(i.min)>0&&stockOf(i.code)<num(i.min));
+  else if(filt==='zero')its=its.filter(i=>stockOf(i.code)<=0);
+  else if(filt.startsWith('c:'))its=its.filter(i=>i.cat===filt.slice(2));
+  its.sort((a,b)=>(a.loc||'яяя').localeCompare(b.loc||'яяя','ru')||a.name.localeCompare(b.name,'ru'));
+  $('#printSel').textContent=sel.size?`Печать этикеток (${sel.size})`:'Печать этикеток';
+  $('#demoBtn').hidden=Object.keys(V.items).length>0;
+  $('#itemList').innerHTML=its.length?`<div class="list">${its.map(i=>{const st=stockOf(i.code),low=num(i.min)>0&&st<num(i.min);
+    return `<div class="it"><input type="checkbox" data-sel="${esc(i.code)}"${sel.has(i.code)?' checked':''} aria-label="Выбрать ${esc(i.name)}"><button class="open" type="button" data-open="${esc(i.code)}"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.code)}${i.art?' · '+esc(i.art):''}${i.loc?' · <b>'+esc(i.loc)+'</b>':''}</div></button><div class="q ${low||st<0?'low':''}">${fq(st)}<small> ${esc(unitOf(i))}</small></div></div>`;}).join('')}</div>`
+    :`<div class="card muted">${Object.keys(V.items).length?'Ничего не найдено.':'Позиций пока нет. Добавь вручную, загрузи список из Excel или нажми «Пример для показа».'}</div>`;}
+$('#q').addEventListener('input',renderItems);
+$('#flt').addEventListener('click',ev=>{const b=ev.target.closest('[data-f]');if(!b)return;filt=b.dataset.f;renderItems();});
+$('#itemList').addEventListener('change',ev=>{const c=ev.target.dataset.sel;if(!c)return;ev.target.checked?sel.add(c):sel.delete(c);renderItems();});
+$('#selAll').onclick=()=>{const boxes=$$('#itemList [data-sel]');const all=boxes.every(b=>sel.has(b.dataset.sel));boxes.forEach(b=>all?sel.delete(b.dataset.sel):sel.add(b.dataset.sel));renderItems();};
+$('#printSel').onclick=()=>{const codes=sel.size?[...sel]:$$('#itemList [data-sel]').map(b=>b.dataset.sel);if(!codes.length){toast('Нет позиций для печати');return;}openPrint(codes,'items');};
+$('#printLocs').onclick=()=>{const locs=[...new Set(Object.values(view().items).map(i=>i.loc).filter(Boolean))].sort();if(!locs.length){toast('У позиций не заданы адреса хранения');return;}openPrint(locs,'locs');};
+
+/* ---------- импорт и пример ---------- */
+function importLines(lines){let n=0;
+  lines.forEach(line=>{if(!line.trim())return;const p=line.split(/\t|;/).map(x=>x.trim());if(!p[0]||/^наимен/i.test(p[0]))return;
+    const it={code:newCode(),created:new Date().toISOString(),name:p[0],art:p[1]||'',unit:p[2]||'шт',loc:(p[3]||'').toUpperCase(),min:p[5]||'',cat:p[6]||'',note:''};
+    putItem(it);const q=num(p[4],0);if(q>0)addMove({code:it.code,type:'in',qty:q,whom:'начальный остаток'});n++;});
+  return n;}
+$('#importBtn').onclick=()=>{$('#im-text').value='';$('#dlgImport').showModal();};
+$('#im-cancel').onclick=()=>$('#dlgImport').close();
+$('#im-ok').onclick=()=>{const n=importLines($('#im-text').value.split(/\r?\n/));$('#dlgImport').close();renderActive();toast(n?`Загружено позиций: ${n}`:'Не нашёл ни одной строки');};
+$('#demoBtn').onclick=()=>{const n=importLines([
+  'Коронка штыревая 115 мм;JK-B115;шт;А-01-01;14;6;Буровой инструмент',
+  'Коронка штыревая 140 мм;JK-B140;шт;А-01-02;6;4;Буровой инструмент',
+  'Пневмоударник 4";JK-DTH4;шт;А-01-03;2;1;Буровой инструмент',
+  'Штанга буровая 76×3000;JK-R76;шт;А-02-01;9;4;Буровой инструмент',
+  'Переходник ударника;JK-AD4;шт;А-02-02;3;2;Буровой инструмент',
+  'РВД 1/2" 1,5 м;РВД-12-1500;шт;Б-01-01;8;4;Гидравлика',
+  'РВД 3/4" 2 м;РВД-34-2000;шт;Б-01-02;3;4;Гидравлика',
+  'Фильтр воздушный компрессора;JK-AF830;шт;Б-02-01;4;2;Фильтры',
+  'Фильтр масляный двигателя;JK-OF830;шт;Б-02-02;6;3;Фильтры',
+  'Фильтр топливный;JK-FF830;шт;Б-02-03;5;3;Фильтры',
+  'Масло компрессорное;ISO VG46;л;В-01-01;120;60;ГСМ',
+  'Смазка для резьбы штанг;GR-THREAD;кг;В-01-02;8;5;ГСМ']);
+  renderActive();toast(`Загружен пример: ${n} позиций. Это демонстрационные данные.`);};
+
+/* ---------- печать этикеток ---------- */
+const FMT={
+  'a4-24':{page:'A4',w:70,h:37,cols:3,rows:8,mt:0.5,ml:0,qr:30},
+  'a4-40':{page:'A4',w:52.5,h:29.7,cols:4,rows:10,mt:0,ml:0,qr:24},
+  't58x40':{page:'58mm 40mm',w:58,h:40,cols:1,rows:1,mt:0,ml:0,qr:33},
+  't43x25':{page:'43mm 25mm',w:43,h:25,cols:1,rows:1,mt:0,ml:0,qr:20}};
+let prList=[],prKind='items';
+function labelHTML(x,f){
+  if(prKind==='locs')return `<div class="lbl loc" style="width:${f.w}mm;height:${f.h}mm">${QR.svg(locURL(x),{quiet:1})}<div class="tx"><div class="cd">${esc(x)}</div><div class="ar">ячейка · ${esc(S.wh||'склад')}</div></div></div>`;
+  const it=view().items[x];if(!it)return '';
+  return `<div class="lbl" style="width:${f.w}mm;height:${f.h}mm">${QR.svg(itemURL(it.code),{quiet:1})}<div class="tx"><div class="cd">${esc(it.code)}</div><div class="nm2">${esc(it.name)}</div>${it.art?`<div class="ar">арт. ${esc(it.art)}</div>`:''}${it.loc?`<div class="lc">${esc(it.loc)}</div>`:''}</div></div>`;}
+function buildSheets(f,copies){const all=[];prList.forEach(x=>{for(let i=0;i<copies;i++)all.push(x);});
+  const per=f.cols*f.rows,pages=[];for(let i=0;i<all.length;i+=per)pages.push(all.slice(i,i+per));
+  return{pages,count:all.length,html:pages.map(pg=>`<div class="sheet" style="grid-template-columns:repeat(${f.cols},${f.w}mm);grid-auto-rows:${f.h}mm;padding:${f.mt}mm 0 0 ${f.ml}mm;break-after:page;page-break-after:always">${pg.map(x=>labelHTML(x,f)).join('')}</div>`).join('')};}
+function openPrint(list,kind){prList=list;prKind=kind;$('#pr-title').textContent=kind==='locs'?'Этикетки ячеек':'Этикетки товаров';$('#dlgPrint').showModal();renderPrintPrev();}
+function renderPrintPrev(){const f=FMT[$('#pr-fmt').value],c=Math.max(1,Math.min(20,parseInt($('#pr-copies').value,10)||1)),b=buildSheets(f,c);
+  $('#pr-info').textContent=`${b.count} ${b.count===1?'этикетка':'этикеток'}, ${b.pages.length} ${f.cols*f.rows>1?'лист(ов)':'шт. на термоленте'}`;
+  const first=b.pages[0]||[];$('#pr-prev').innerHTML=`<div class="sheet" style="grid-template-columns:repeat(${Math.min(f.cols,3)},${f.w}mm);grid-auto-rows:${f.h}mm;gap:2mm">${first.slice(0,6).map(x=>labelHTML(x,f)).join('')}</div>`;}
+$('#pr-fmt').onchange=renderPrintPrev;$('#pr-copies').oninput=renderPrintPrev;
+$('#pr-cancel').onclick=()=>$('#dlgPrint').close();
+$('#pr-go').onclick=()=>{const f=FMT[$('#pr-fmt').value],c=Math.max(1,Math.min(20,parseInt($('#pr-copies').value,10)||1));
+  $('#pageStyle').textContent=`@page{size:${f.page};margin:0}`;$('#print').innerHTML=buildSheets(f,c).html;$('#dlgPrint').close();
+  setTimeout(()=>window.print(),150);};
+window.addEventListener('afterprint',()=>{$('#print').innerHTML='';});
+
+/* ---------- инвентаризация ---------- */
+const activeInv=()=>{const v=S.invActive&&view().invs[S.invActive];return v&&!v.closed?v:null;};
+function invScope(inv){return Object.values(view().items).filter(i=>!inv.scope||(i.loc||'').startsWith(inv.scope)).sort((a,b)=>(a.loc||'яяя').localeCompare(b.loc||'яяя','ru')||a.name.localeCompare(b.name,'ru'));}
+function saveInv(inv){inv.updated=new Date().toISOString();S.invs[inv.id]=inv;S.dInvs[inv.id]=(S.dInvs[inv.id]|0)+1;dirty();}
+function renderInv(){const box=$('#invBody'),V=view(),inv=activeInv();
+  const hist=Object.values(V.invs).filter(v=>v.closed).sort((a,b)=>(b.closedAt||'').localeCompare(a.closedAt||'')).slice(0,10);
+  const histHTML=hist.length?`<div class="card"><h2>Проведённые</h2>${hist.map(v=>`<div class="it" style="grid-template-columns:1fr auto;padding:8px 0"><div><div class="nm">${esc(v.name)}</div><div class="sub">${tm(v.closedAt)} · ${esc(v.by||'')} · расхождений ${v.result?v.result.diffs:0}</div></div><button class="btn" type="button" data-invcsv="${esc(v.id)}">CSV</button></div>`).join('')}</div>`:'';
+  if(!inv){const locs=[...new Set(Object.values(V.items).map(i=>(i.loc||'').split('-')[0]).filter(Boolean))].sort();
+    box.innerHTML=`<div class="card"><h2>Новая инвентаризация</h2><p class="hint">Сканируешь этикетки и вводишь фактическое количество. В конце приложение покажет расхождения и поправит остатки.</p>
+      <label class="f">Название<input id="iv-name" type="text" value="Инвентаризация ${today().split('-').reverse().join('.')}"></label>
+      <label class="f" style="margin-top:8px">Что считаем<select id="iv-scope"><option value="">Весь склад</option>${locs.map(l=>`<option value="${esc(l)}">Зона ${esc(l)}</option>`).join('')}</select></label>
+      <button class="btn main big" id="iv-start" type="button" style="margin-top:12px">Начать</button></div>`+histHTML;
+    $('#iv-start').onclick=()=>{if(!Object.keys(V.items).length){toast('Сначала добавь позиции на вкладке «Товары»');return;}
+      const v={id:'inv-'+Date.now().toString(36)+'-'+rid(),name:$('#iv-name').value.trim()||'Инвентаризация',scope:$('#iv-scope').value,started:new Date().toISOString(),by:S.user||'',counts:{},closed:false};
+      saveInv(v);S.invActive=v.id;save();renderInv();};return;}
+  const scope=invScope(inv),counted=scope.filter(i=>inv.counts[i.code]).length;
+  const rows=scope.map(i=>{const c=inv.counts[i.code],st=stockOf(i.code),d=c?num(c.q)-st:null;return{i,c,st,d};});
+  const diffs=rows.filter(r=>r.c&&Math.abs(r.d)>1e-9);
+  box.innerHTML=`<div class="card"><h2>${esc(inv.name)}</h2><div class="progress"><div style="width:${scope.length?counted/scope.length*100:0}%"></div></div>
+    <p class="hint" style="margin:0 0 10px">Посчитано ${counted} из ${scope.length}${inv.scope?' · зона '+esc(inv.scope):''} · расхождений ${diffs.length}</p>
+    <button class="scanbig" id="iv-scan" type="button" style="min-height:110px">Сканировать и считать</button></div>
+    <div class="list">${rows.map(r=>`<div class="it" style="grid-template-columns:1fr auto"><button class="open" type="button" data-count="${esc(r.i.code)}"><div class="nm">${esc(r.i.name)}</div><div class="sub">${esc(r.i.code)}${r.i.loc?' · '+esc(r.i.loc):''} · учёт ${fq(r.st)}</div></button><div class="q ${r.c?(Math.abs(r.d)>1e-9?'low':''):'muted'}" style="font-size:18px">${r.c?'факт '+fq(num(r.c.q))+(Math.abs(r.d)>1e-9?`<small> (${r.d>0?'+':''}${fq(r.d)})</small>`:' ✓'):'не посчитано'}</div></div>`).join('')}</div>
+    <div class="card"><label class="chk"><input type="checkbox" id="iv-zero"> Непосчитанные позиции считать отсутствующими (остаток 0)</label>
+    <div class="row"><button class="btn main" id="iv-close" type="button">Провести инвентаризацию</button><button class="btn danger" id="iv-cancel" type="button">Отменить</button></div></div>`+histHTML;
+  $('#iv-scan').onclick=()=>openScan('count');}
+$('#invBody').addEventListener('click',ev=>{const t=ev.target.closest('button');if(!t)return;const inv=activeInv();
+  if(t.dataset.count){openCount(t.dataset.count);return;}
+  if(t.dataset.invcsv){invCSV(view().invs[t.dataset.invcsv]);return;}
+  if(!inv)return;
+  if(t.id==='iv-close'){if(!t.dataset.arm){t.dataset.arm='1';t.textContent='Нажми ещё раз — остатки будут исправлены';setTimeout(()=>{if(t.isConnected){delete t.dataset.arm;t.textContent='Провести инвентаризацию';}},4000);return;}
+    const zero=$('#iv-zero').checked;let n=0;
+    invScope(inv).forEach(i=>{const c=inv.counts[i.code];if(!c&&!zero)return;const fact=c?num(c.q):0,d=fact-stockOf(i.code);
+      if(Math.abs(d)>1e-9){addMove({code:i.code,type:'adj',qty:Math.round(d*1000)/1000,whom:inv.name,note:'факт '+fq(fact)});n++;}});
+    inv.closed=true;inv.closedAt=new Date().toISOString();inv.result={diffs:n,counted:Object.keys(inv.counts).length};saveInv(inv);S.invActive=null;save();renderInv();toast(`Проведено. Исправлено остатков: ${n}`);return;}
+  if(t.id==='iv-cancel'){if(!t.dataset.arm){t.dataset.arm='1';t.textContent='Точно отменить подсчёт?';setTimeout(()=>{if(t.isConnected){delete t.dataset.arm;t.textContent='Отменить';}},4000);return;}
+    inv.closed=true;inv.cancelled=true;inv.closedAt=new Date().toISOString();inv.name+=' (отменена)';inv.result={diffs:0};saveInv(inv);S.invActive=null;save();renderInv();}});
+let ctCode=null;
+function openCount(code){const inv=activeInv(),it=view().items[code];if(!inv||!it)return;
+  if(inv.scope&&!(it.loc||'').startsWith(inv.scope)){toast(`${it.name} — не из зоны ${inv.scope}`);}
+  ctCode=code;const c=inv.counts[code];$('#ct-title').textContent=it.name;
+  $('#ct-sub').textContent=`${it.code}${it.loc?' · '+it.loc:''} · по учёту ${fq(stockOf(code))} ${unitOf(it)}${c?' · уже посчитано '+fq(num(c.q)):''}`;
+  $('#ct-qty').value=c?String(c.q).replace('.',','):'';$('#dlgCount').showModal();setTimeout(()=>$('#ct-qty').focus(),50);}
+$('#ct-minus').onclick=()=>step('#ct-qty',-1);$('#ct-plus').onclick=()=>step('#ct-qty',1);
+$('#ct-cancel').onclick=()=>$('#dlgCount').close();
+$('#ct-ok').onclick=()=>{const inv=activeInv();if(!inv)return;const v=$('#ct-qty').value.trim();if(v===''||num(v,-1)<0){toast('Введи фактическое количество');return;}
+  inv.counts[ctCode]={q:num(v),at:new Date().toISOString(),by:S.user||''};saveInv(inv);$('#dlgCount').close();renderInv();
+  if($('#ct-next').checked)openScan('count');};
+$('#ct-qty').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ct-ok').click();});
+
+/* ---------- журнал ---------- */
+function renderLog(){const mv=Object.values(view().moves).sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,80);
+  $('#moveList').innerHTML=mv.length?`<div class="list" style="padding:0 12px">${mv.map(moveRow).join('')}</div>`:'<div class="card muted">Движений пока нет.</div>';
+  $('#s-user').value=S.user||'';$('#s-wh').value=S.wh||'';renderConn();}
+$('#s-user').addEventListener('input',e=>{S.user=e.target.value.trim();save();renderWho();});
+$('#s-wh').addEventListener('input',e=>{S.wh=e.target.value.trim();save();renderWho();});
+const csvJoin=rows=>'﻿'+rows.map(r=>r.map(c=>{c=String(c==null?'':c);return /[;"\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(';')).join('\r\n');
+const dec=n=>String(Math.round(n*1000)/1000).replace('.',',');
+async function download(name,data){const blob=new Blob([data],{type:'text/csv;charset=utf-8'});
+  if(/Android|iPhone|iPad/i.test(navigator.userAgent)&&navigator.canShare){try{const f=new File([blob],name,{type:'text/csv'});if(navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return;}}catch(e){if(e&&e.name==='AbortError')return;}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);}
+$('#csvStock').onclick=()=>{const its=Object.values(view().items);if(!its.length){toast('Позиций нет');return;}
+  download(`ostatki-${today()}.csv`,csvJoin([['Код','Наименование','Артикул','Ед.','Адрес','Группа','Остаток','Мин. остаток','Ниже минимума']].concat(its.sort((a,b)=>(a.loc||'').localeCompare(b.loc||'','ru')).map(i=>{const s=stockOf(i.code);return[i.code,i.name,i.art,unitOf(i),i.loc,i.cat,dec(s),i.min,num(i.min)>0&&s<num(i.min)?'да':''];}))));};
+$('#csvMoves').onclick=()=>{const V=view(),mv=Object.values(V.moves).sort((a,b)=>(b.at||'').localeCompare(a.at||''));if(!mv.length){toast('Движений нет');return;}
+  download(`dvizheniya-${today()}.csv`,csvJoin([['Дата','Операция','Код','Наименование','Кол-во','Ед.','Кому/от кого','Откуда','Куда','Примечание','Кто']].concat(mv.map(m=>{const it=V.items[m.code]||{};
+    return[tm(m.at),TYPES[m.type]||m.type,m.code,it.name||'',m.type==='move'?'':dec(m.type==='out'?-num(m.qty):num(m.qty)),unitOf(it),m.whom,m.from,m.to,m.note,m.by];}))));};
+function invCSV(v){if(!v)return;const V=view();
+  download(`inventarizaciya-${(v.closedAt||'').slice(0,10)}.csv`,csvJoin([['Код','Наименование','Адрес','Факт','Посчитал','Время']].concat(Object.entries(v.counts||{}).map(([c,x])=>{const it=V.items[c]||{};return[c,it.name||'',it.loc||'',dec(num(x.q)),x.by,tm(x.at)];}))));}
+
+/* ---------- синхронизация ---------- */
+function renderConn(){const u=$('#cfg-url'),k=$('#cfg-key');if(document.activeElement!==u)u.value=S.cfg.url||'';if(document.activeElement!==k)k.value=S.cfg.key||'';
+  $('#connState').textContent=!S.cfg.url?'Не подключено. Все записи хранятся на этом телефоне.':(S.lastSync?`Подключено. Последний обмен ${tm(S.lastSync)}.`:'Адрес указан. Нажми «Проверить и обновить».');}
+async function sync(){if(syncing)return;
+  if(!S.cfg.url){toast('Подключи Google Таблицу: вкладка «Журнал»');setTab('log');return;}
+  if(!navigator.onLine){toast('Нет интернета. Записи сохранены на телефоне.');return;}
+  syncing=true;renderStatus();
+  const sent={i:Object.assign({},S.dItems),m:Object.keys(S.dMoves),v:Object.assign({},S.dInvs)};
+  const docs=[];Object.keys(sent.i).forEach(c=>{if(S.items[c])docs.push({c:'items',id:c,data:S.items[c]});});
+  sent.m.forEach(id=>{if(S.moves[id])docs.push({c:'moves',id,data:S.moves[id]});});
+  Object.keys(sent.v).forEach(id=>{if(S.invs[id])docs.push({c:'invs',id,data:S.invs[id]});});
+  const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),60000);
+  try{const r=await fetch(S.cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:S.cfg.key||'',device:S.deviceId,docs}),signal:ctl.signal,redirect:'follow'});
+    let j;try{j=JSON.parse(await r.text());}catch(e){throw{code:'bad_response'};}
+    if(!j.ok)throw{code:j.error||'server',msg:j.message};
+    const d=j.data||{};shared={items:d.items||[],moves:d.moves||[],invs:d.invs||[],at:j.at||new Date().toISOString()};
+    try{localStorage.setItem(SH,JSON.stringify(shared));}catch(e){toast('Общий журнал не поместился в память телефона');}
+    Object.keys(sent.i).forEach(c=>{if(S.dItems[c]===sent.i[c]){delete S.dItems[c];delete S.items[c];}});
+    sent.m.forEach(id=>{delete S.dMoves[id];delete S.moves[id];});
+    Object.keys(sent.v).forEach(id=>{if(S.dInvs[id]===sent.v[id]){delete S.dInvs[id];if(id!==S.invActive)delete S.invs[id];}});
+    S.lastSync=new Date().toISOString();dirty();renderActive();toast(docs.length?'Отправлено в таблицу':'Данные обновлены');}
+  catch(e){const c=(e&&e.code)||(e&&e.name);
+    toast(c==='bad_key'?'Неверный ключ доступа':c==='AbortError'?'Таблица долго не отвечает, попробуй ещё раз':c==='bad_response'?'Не тот адрес или скрипт развёрнут без доступа «Все»':c==='server'?'Ошибка таблицы: '+(e.msg||''):'Нет связи с таблицей. Записи сохранены на телефоне.');}
+  finally{clearTimeout(to);syncing=false;renderStatus();renderConn();}}
+$('#syncBtn').onclick=sync;$('#cfg-test').onclick=sync;
+$('#cfg-url').addEventListener('input',e=>{S.cfg.url=e.target.value.trim();save();});
+$('#cfg-key').addEventListener('input',e=>{S.cfg.key=e.target.value.trim();save();});
+$('#cfg-share').onclick=async()=>{if(!S.cfg.url){toast('Сначала укажи адрес и ключ');return;}
+  const enc=btoa(unescape(encodeURIComponent(JSON.stringify({u:S.cfg.url,k:S.cfg.key||'',w:S.wh||''})))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const link=BASE+'#cfg='+enc,text='Склад: открой ссылку и установи приложение — подключение настроится само:\n'+link;
+  try{if(navigator.share){await navigator.share({title:'Склад',text});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+  try{await navigator.clipboard.writeText(link);toast('Ссылка скопирована. В ней ключ — не выкладывай в открытые чаты.');}catch(e){prompt('Ссылка для сотрудников:',link);}};
+function readHash(){const h=location.hash;if(!h)return;
+  const m=/[#&]cfg=([\w-]+)/.exec(h);
+  if(m){try{let b=m[1].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';const c=JSON.parse(decodeURIComponent(escape(atob(b))));
+    if(c&&c.u){S.cfg={url:String(c.u),key:String(c.k||'')};if(c.w&&!S.wh)S.wh=String(c.w);save();renderWho();renderConn();toast('Подключение к таблице настроено');}}catch(e){toast('Ссылка подключения повреждена');}}
+  else{const p=parseCode(h);setTimeout(()=>{if(p.loc)showLoc(p.loc);else if(p.item){if(view().items[p.item])openItem(p.item);else toast('Позиция '+p.item+' не найдена. Если её завели на другом телефоне — нажми «Отправить», чтобы обновить данные.');}},200);}
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}}
+window.addEventListener('hashchange',readHash);
+window.addEventListener('online',renderStatus);window.addEventListener('offline',renderStatus);
+
+/* ---------- вкладки ---------- */
+function setTab(t){S.tab=t;save();$$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+t));$$('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));renderActive();window.scrollTo(0,0);}
+function renderActive(){const t=S.tab;if(t==='scan')renderScan();if(t==='items')renderItems();if(t==='inv')renderInv();if(t==='log')renderLog();}
+$$('nav.tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+renderWho();renderStatus();setTab(S.tab||'scan');readHash();
+
+/* ---------- установка и обновление ---------- */
+const isStandalone=()=>(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);let installEvt=null;
+function renderInstall(){const c=$('#installCard');if(isStandalone()||S.installHidden){c.hidden=true;return;}c.hidden=false;$('#installBtn').hidden=!installEvt;
+  $('#installHint').textContent=installEvt?'Установи один раз, пока есть интернет. Дальше склад работает со значка без связи.':isIOS?'В Safari: «Поделиться» → «На экран „Домой“».':'В меню браузера (⋮) выбери «Установить приложение» или «Добавить на главный экран».';}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;renderInstall();});
+window.addEventListener('appinstalled',()=>{installEvt=null;renderInstall();});
+$('#installBtn').onclick=async()=>{if(!installEvt)return;installEvt.prompt();try{await installEvt.userChoice;}catch(e){}installEvt=null;renderInstall();};
+$('#installHide').onclick=()=>{S.installHidden=true;save();renderInstall();};renderInstall();
+if(navigator.storage&&navigator.storage.persist)navigator.storage.persisted().then(p=>{if(!p)navigator.storage.persist().catch(()=>{});}).catch(()=>{});
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){let reloading=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(reloading)return;reloading=true;location.reload();});
+  navigator.serviceWorker.register('sw.js',{scope:'./'}).then(reg=>{const offer=w=>{if(!w)return;$('#updBar').hidden=false;$('#updBtn').onclick=()=>{save();w.postMessage('skip');};};
+    if(reg.waiting&&navigator.serviceWorker.controller)offer(reg.waiting);
+    reg.addEventListener('updatefound',()=>{const w=reg.installing;if(w)w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)offer(w);});});
+    const check=()=>{if(navigator.onLine)reg.update().catch(()=>{});};setInterval(check,3*3600*1000);window.addEventListener('online',check);}).catch(()=>{});}
+})();
+</script>
+</body></html>
