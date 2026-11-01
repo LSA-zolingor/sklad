@@ -420,7 +420,12 @@ function view(){if(VIEW)return VIEW;
   Object.values(moves).forEach(m=>{const s=m.type==='out'?-num(m.qty):m.type==='move'?0:num(m.qty);stock[m.code]=(stock[m.code]||0)+s;
     if(!last[m.code]||(m.at||'')>(last[m.code].at||''))last[m.code]=m;});
   return VIEW={items,moves,invs,stock,last};}
-function dirty(){VIEW=null;save();renderStatus();}
+function dirty(){VIEW=null;save();renderStatus();autoSync();}
+/* автоотправка: через 3 с после записи, если подключена таблица и есть интернет */
+let autoT=null;
+function autoSync(delay){clearTimeout(autoT);if(!S.cfg.url||!pending())return;autoT=setTimeout(()=>{if(navigator.onLine)sync(true);},delay||3000);}
+window.addEventListener('online',()=>autoSync(1000));
+setInterval(()=>{if(pending()&&!syncing)autoSync(1);},5*60*1000);
 const stockOf=c=>Math.round((view().stock[c]||0)*1000)/1000;
 const ALPH='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 function newCode(){const V=view();for(;;){let c='K';for(let i=0;i<5;i++)c+=ALPH[Math.floor(Math.random()*ALPH.length)];if(!V.items[c])return c;}}
@@ -726,7 +731,8 @@ function invCSV(v){if(!v)return;const V=view();
 /* ---------- синхронизация ---------- */
 function renderConn(){const u=$('#cfg-url'),k=$('#cfg-key');if(document.activeElement!==u)u.value=S.cfg.url||'';if(document.activeElement!==k)k.value=S.cfg.key||'';
   $('#connState').textContent=!S.cfg.url?'Не подключено. Все записи хранятся на этом телефоне.':(S.lastSync?`Подключено. Последний обмен ${tm(S.lastSync)}.`:'Адрес указан. Нажми «Проверить и обновить».');}
-async function sync(){if(syncing)return;
+async function sync(auto){auto=auto===true;if(syncing){if(auto)autoSync(5000);return;}
+  if(auto&&(!S.cfg.url||!navigator.onLine))return;
   if(!S.cfg.url){toast('Подключи Google Таблицу: вкладка «Журнал»');setTab('log');return;}
   if(!navigator.onLine){toast('Нет интернета. Записи сохранены на телефоне.');return;}
   syncing=true;renderStatus();
@@ -743,8 +749,9 @@ async function sync(){if(syncing)return;
     Object.keys(sent.i).forEach(c=>{if(S.dItems[c]===sent.i[c]){delete S.dItems[c];delete S.items[c];}});
     sent.m.forEach(id=>{delete S.dMoves[id];delete S.moves[id];});
     Object.keys(sent.v).forEach(id=>{if(S.dInvs[id]===sent.v[id]){delete S.dInvs[id];if(id!==S.invActive)delete S.invs[id];}});
-    S.lastSync=new Date().toISOString();dirty();renderActive();toast(docs.length?'Отправлено в таблицу':'Данные обновлены');}
+    S.lastSync=new Date().toISOString();dirty();renderActive();if(!auto)toast(docs.length?'Отправлено в таблицу':'Данные обновлены');}
   catch(e){const c=(e&&e.code)||(e&&e.name);
+    if(auto&&!['bad_key','bad_response'].includes(c))return;
     toast(c==='bad_key'?'Неверный ключ доступа':c==='AbortError'?'Таблица долго не отвечает, попробуй ещё раз':c==='bad_response'?'Не тот адрес или скрипт развёрнут без доступа «Все»':c==='server'?'Ошибка таблицы: '+(e.msg||''):'Нет связи с таблицей. Записи сохранены на телефоне.');}
   finally{clearTimeout(to);syncing=false;renderStatus();renderConn();}}
 $('#syncBtn').onclick=sync;$('#cfg-test').onclick=sync;
@@ -768,7 +775,7 @@ window.addEventListener('online',renderStatus);window.addEventListener('offline'
 function setTab(t){S.tab=t;save();$$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+t));$$('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));renderActive();window.scrollTo(0,0);}
 function renderActive(){const t=S.tab;if(t==='scan')renderScan();if(t==='items')renderItems();if(t==='inv')renderInv();if(t==='log')renderLog();}
 $$('nav.tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
-renderWho();renderStatus();setTab(S.tab||'scan');readHash();
+renderWho();renderStatus();setTab(S.tab||'scan');readHash();autoSync(2000);
 
 /* ---------- установка и обновление ---------- */
 const isStandalone=()=>(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
