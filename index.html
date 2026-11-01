@@ -502,9 +502,21 @@ function openItem(code){const V=view(),it=V.items[code];if(!it){toast('Пози�
   <div class="grid2"><button class="btn main big" type="button" data-op="in">Приход</button><button class="btn main big" type="button" data-op="out">Расход</button><button class="btn" type="button" data-op="move">Переместить</button><button class="btn" type="button" id="it-edit">Изменить</button></div>
   <div><div class="muted" style="font-size:14px;margin-bottom:4px">Выдать на станок</div><div class="grid2">${MACHINES.map(m=>`<button class="btn main big" type="button" data-mach="${esc(m)}">${esc(m)}</button>`).join('')}</div></div>
   <button class="btn" type="button" id="it-print">Напечатать этикетку</button>
-  ${mv.length?`<div><h3 style="font-size:18px;margin:4px 0">Движения</h3>${mv.map(moveRow).join('')}</div>`:''}`;
+  ${mv.length?`<div><h3 style="font-size:18px;margin:4px 0">Движения</h3>${mv.map(undoRow).join('')}</div>`:''}`;
   if(!$('#dlgItem').open)$('#dlgItem').showModal();}
+/* отмена ошибочной записи: встречная операция, исходная запись остаётся в истории */
+const undoneIds=()=>{const u=new Set();Object.values(view().moves).forEach(m=>{if(m.undo)u.add(m.undo);});return u;};
+function undoRow(m){const done=undoneIds().has(m.id);let side='';
+  if(done)side='<span class="muted" style="font-size:13px">отменено</span>';
+  else if((m.type==='in'||m.type==='out')&&!m.undo)side=`<button class="btn ghost" type="button" data-undo="${esc(m.id)}" style="min-height:40px;padding:6px 10px;font-size:14px">Отменить</button>`;
+  return `<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">${moveRow(m)}${side}</div>`;}
+function undoMove(id,btn){const m=view().moves[id];if(!m||undoneIds().has(id))return;
+  if(!btn.dataset.arm){btn.dataset.arm='1';btn.textContent='Точно?';setTimeout(()=>{if(btn.isConnected){delete btn.dataset.arm;btn.textContent='Отменить';}},4000);return;}
+  const back=m.type==='out'?'in':'out';
+  addMove({code:m.code,type:back,qty:num(m.qty),whom:'отмена: '+(m.whom||TYPES[m.type]),note:'отмена записи от '+tm(m.at),undo:m.id});
+  toast('Запись отменена, остаток исправлен');openItem(m.code);renderActive();}
 $('#itemBody').addEventListener('click',ev=>{const t=ev.target.closest('button');if(!t)return;
+  if(t.dataset.undo){undoMove(t.dataset.undo,t);return;}
   if(t.id==='it-close'){$('#dlgItem').close();return;}
   if(t.dataset.op){openMove(t.dataset.op);return;}
   if(t.dataset.mach){openMove('out',t.dataset.mach);return;}
