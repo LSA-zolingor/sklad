@@ -162,7 +162,8 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
     </button>
     <div class="card" style="margin-top:12px">
       <label class="f">Или введи код, название или артикул<input id="codeIn" type="text" autocapitalize="characters" autocomplete="off" placeholder="код, название или артикул"></label>
-      <button class="btn" id="codeGo" type="button" style="margin-top:8px">Открыть</button>
+      <div class="row" style="margin-top:8px"><button class="btn" id="codeGo" type="button">Открыть</button><button class="btn" id="voiceGo" type="button" hidden>🎤 Сказать</button></div>
+      <p class="hint" id="voiceHint" hidden style="margin:6px 0 0"></p>
     </div>
     <div class="stats" id="scanStats"></div>
     <div id="scanLow"></div>
@@ -495,9 +496,20 @@ function handleCode(raw){const p=parseCode(raw),V=view();
   openItem(c);}
 /* поиск по всем полям: код, название, артикул 1С, кат. №, группа, ячейка; без учёта регистра, пробелов, вида тире
    и раскладки для одинаковых на вид букв (русская С = латинская C) */
-const normQ=x=>String(x||'').toLowerCase().replace(/ё/g,'е').replace(/[\u2010-\u2015\u2212]/g,'-').replace(/\s+/g,'').replace(/[авекмнорстух]/g,ch=>'abekmhopctyx'['авекмнорстух'.indexOf(ch)]);
+const normQ=x=>String(x||'').toLowerCase().replace(/ё/g,'е').replace(/[\u2010-\u2015\u2212]/g,'-').replace(/[\s\-.,!?]+/g,'').replace(/[авекмнорстух]/g,ch=>'abekmhopctyx'['авекмнорстух'.indexOf(ch)]);
 const itemHit=(i,q)=>[i.code,i.name,i.art,i.note,i.cat,i.loc].some(x=>normQ(x).includes(q));
 function findItems(raw){const q=normQ(raw);if(!q)return[];return Object.values(view().items).filter(i=>itemHit(i,q));}
+/* голосовой поиск: распознавание речи браузером (Chrome на Android), нужен интернет */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null;
+function renderVoice(){const b=$('#voiceGo'),h=$('#voiceHint');if(!SR){b.hidden=true;h.hidden=true;return;}
+  b.hidden=false;const on=navigator.onLine;b.disabled=!on||!!rec;b.textContent=rec?'🎤 Слушаю…':'🎤 Сказать';
+  h.hidden=on;h.textContent='Голосовой поиск работает только с интернетом. Без связи введи название вручную.';}
+$('#voiceGo').onclick=()=>{if(!SR||rec)return;rec=new SR();rec.lang='ru-RU';rec.interimResults=false;rec.maxAlternatives=1;
+  rec.onresult=e=>{const t=((e.results[0]||[])[0]||{}).transcript||'';const v=t.trim().replace(/[.!?]+$/,'');if(v){$('#codeIn').value=v;handleCode(v);}};
+  rec.onerror=e=>{toast(e.error==='not-allowed'?'Разреши доступ к микрофону в настройках браузера':e.error==='no-speech'?'Ничего не услышал, попробуй ещё раз':e.error==='network'?'Нет связи с сервисом распознавания':'Не получилось распознать речь');};
+  rec.onend=()=>{rec=null;renderVoice();};
+  try{rec.start();}catch(e){rec=null;}renderVoice();};
+window.addEventListener('online',renderVoice);window.addEventListener('offline',renderVoice);renderVoice();
 function showLoc(loc){setTab('items');$('#q').value=loc;renderItems();toast('Ячейка '+loc);}
 
 /* ---------- камера ---------- */

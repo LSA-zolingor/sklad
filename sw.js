@@ -1,5 +1,5 @@
 /* Склад — офлайн-кэш. При выпуске новой версии увеличь VERSION. */
-const VERSION = 'sklad-v9';
+const VERSION = 'sklad-v11';
 const FILES = ['./', 'index.html', 'nastrojka.html', 'Code-sklad.gs', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 const JSQR = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
 
