@@ -1,11 +1,12 @@
 /* Склад — офлайн-кэш. При выпуске новой версии увеличь VERSION. */
-const VERSION = 'sklad-v7';
+const VERSION = 'sklad-v8';
 const FILES = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 const JSQR = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(async c => {
-    await c.addAll(FILES);
+    /* cache:'reload' — брать файлы с сервера, а не из кэша браузера, иначе новая версия может сохранить старый index.html */
+    await c.addAll(FILES.map(f => new Request(f, {cache: 'reload'})));
     try { await c.add(new Request(JSQR, {mode: 'cors'})); } catch (err) { /* без сети распознавание запасным способом недоступно */ }
   }));
 });
