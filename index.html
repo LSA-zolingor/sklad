@@ -185,7 +185,7 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
     <div class="row">
       <button class="btn" id="importBtn" type="button">Загрузить список</button>
       <button class="btn ghost" id="demoBtn" type="button">Пример для показа</button>
-      <button class="btn" id="preset1cBtn" type="button">Загрузить 149 позиций из 1С</button>
+      <button class="btn" id="preset1cBtn" type="button" hidden>Загрузить 149 позиций из 1С</button>
     </div>
   </section>
 
@@ -198,8 +198,13 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
       <h2>Кто работает</h2>
       <div class="grid2">
         <label class="f">ФИО<input id="s-user" type="text"></label>
-        <label class="f">Склад<input id="s-wh" type="text" placeholder="например Склад ГСМ, участок 2"></label>
+        <label class="f">Организация, склад<input id="s-wh" type="text" placeholder="например ООО «Ромашка», склад 2"></label>
       </div>
+    </div>
+    <div class="card">
+      <h2>Кнопки быстрой выдачи</h2>
+      <p class="hint">Появляются в карточке товара: одно нажатие, и расход записан на этот станок, машину или участок. Каждая кнопка с новой строки. Пусто — кнопок нет.</p>
+      <textarea id="s-mach" style="min-height:96px;font-size:18px" placeholder="Станок №1&#10;Станок №2&#10;Самосвал 045"></textarea>
     </div>
     <div class="card">
       <h2>Подключение к Google Таблице</h2>
@@ -210,6 +215,7 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
         <button class="btn main" id="cfg-test" type="button">Проверить и обновить</button>
         <button class="btn" id="cfg-share" type="button">Ссылка для сотрудников</button>
       </div>
+      <p class="hint" style="margin:10px 0 0">Своей таблицы ещё нет? <a href="nastrojka.html" target="_blank" rel="noopener">Инструкция: как подключить таблицу за 10 минут</a></p>
     </div>
     <div class="card">
       <h2>Выгрузка для Excel</h2>
@@ -308,6 +314,19 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
   <div class="row" style="justify-content:flex-end"><button class="btn ghost" id="ct-cancel" type="button">Отмена</button><button class="btn main" id="ct-ok" type="button">Записать факт</button></div>
 </div></dialog>
 
+<!-- первый запуск -->
+<dialog id="dlgHello"><div class="dbody">
+  <h3>Склад: учёт по QR-кодам</h3>
+  <p style="margin:0">Приход, расход, выдача и инвентаризация с телефона. Работает без интернета, данные уходят в Google Таблицу вашей организации.</p>
+  <label class="f">Организация, склад<input id="h-wh" type="text" placeholder="например ООО «Ромашка», склад 2"></label>
+  <label class="f">Твоё ФИО<input id="h-user" type="text"></label>
+  <div class="card" style="margin:0;padding:10px 12px"><b>Тебе прислали ссылку от руководителя?</b><br><span class="muted" style="font-size:15px">Просто открой её: таблица и ключ подключатся сами.</span></div>
+  <div style="display:grid;gap:8px">
+    <button class="btn main big" id="h-own" type="button" autofocus>Подключить свою таблицу</button>
+    <button class="btn" id="h-try" type="button">Попробовать без таблицы</button>
+  </div>
+</div></dialog>
+
 <div id="print"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <script>
@@ -401,9 +420,12 @@ const BASE=location.origin+location.pathname;
 /* ---------- хранение ---------- */
 const LS='sklad-v1',SH='sklad-shared-v1';
 let S;try{S=JSON.parse(localStorage.getItem(LS)||'null');}catch(e){S=null;}
-if(!S||!S.items)S={deviceId:rid(),user:'',wh:'',items:{},moves:{},invs:{},dItems:{},dMoves:{},dInvs:{},cfg:{url:'',key:''},lastSync:'',tab:'scan',invActive:null,recentWhom:[]};
+if(!S||!S.items)S={deviceId:rid(),machines:[],preset1c:false,welcomed:false,user:'',wh:'',items:{},moves:{},invs:{},dItems:{},dMoves:{},dInvs:{},cfg:{url:'',key:''},lastSync:'',tab:'scan',invActive:null,recentWhom:[]};
 ['items','moves','invs','dItems','dMoves','dInvs','cfg'].forEach(k=>{if(!S[k]||typeof S[k]!=='object')S[k]={};});
 if(!Array.isArray(S.recentWhom))S.recentWhom=[];
+/* телефоны, где приложение стояло до универсальной версии, сохраняют прежние станки и кнопку 1С */
+if(!Array.isArray(S.machines))S.machines=['Станок №1','Станок №2'];
+if(typeof S.preset1c!=='boolean')S.preset1c=true;
 function save(){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){toast('Память телефона переполнена — отправь данные в таблицу');}}
 let shared={items:[],moves:[],invs:[],at:''};
 try{const c=JSON.parse(localStorage.getItem(SH)||'null');if(c)shared=Object.assign(shared,c);}catch(e){}
@@ -513,7 +535,7 @@ function openItem(code){const V=view(),it=V.items[code];if(!it){toast('Пози�
   <div style="text-align:right"><div class="cond" style="font-size:24px;font-weight:700">${esc(it.loc||'—')}</div><div class="muted" style="font-size:14px">адрес хранения</div></div></div>
   ${it.note?`<p style="margin:0">${esc(it.note)}</p>`:''}
   <div class="grid2"><button class="btn main big" type="button" data-op="in">Приход</button><button class="btn main big" type="button" data-op="out">Расход</button><button class="btn" type="button" data-op="move">Переместить</button><button class="btn" type="button" id="it-edit">Изменить</button></div>
-  <div><div class="muted" style="font-size:14px;margin-bottom:4px">Выдать на станок</div><div class="grid2">${MACHINES.map(m=>`<button class="btn main big" type="button" data-mach="${esc(m)}">${esc(m)}</button>`).join('')}</div></div>
+  ${S.machines.length?`<div><div class="muted" style="font-size:14px;margin-bottom:4px">Быстрая выдача</div><div class="grid2">${S.machines.map(m=>`<button class="btn main big" type="button" data-mach="${esc(m)}">${esc(m)}</button>`).join('')}</div></div>`:''}
   <button class="btn" type="button" id="it-print">Напечатать этикетку</button>
   ${mv.length?`<div><h3 style="font-size:18px;margin:4px 0">Движения</h3>${mv.map(undoRow).join('')}</div>`:''}`;
   if(!$('#dlgItem').open)$('#dlgItem').showModal();}
@@ -538,7 +560,6 @@ $('#itemBody').addEventListener('click',ev=>{const t=ev.target.closest('button')
 
 /* ---------- операции ---------- */
 let op='in';
-const MACHINES=['Станок №1','Станок №2'];
 function openMove(o,whom){op=o;const it=view().items[cur];
   $('#mv-title').textContent=TYPES[o];$('#mv-sub').textContent=`${it.name} · остаток ${fq(stockOf(cur))} ${unitOf(it)}`;
   $('#mv-qtyrow').hidden=o==='move';$('#mv-whomL').hidden=o==='move';$('#mv-locL').hidden=o!=='move';
@@ -597,7 +618,7 @@ function renderItems(){const V=view(),q=$('#q').value.trim().toLowerCase();
   its.sort((a,b)=>(a.loc||'яяя').localeCompare(b.loc||'яяя','ru')||a.name.localeCompare(b.name,'ru'));
   $('#printSel').textContent=sel.size?`Печать этикеток (${sel.size})`:'Печать этикеток';
   $('#demoBtn').hidden=Object.keys(V.items).length>0;
-  $('#preset1cBtn').hidden=PRESET_1C.every(r=>V.items[r[0]]);
+  $('#preset1cBtn').hidden=!S.preset1c||PRESET_1C.every(r=>V.items[r[0]]);
   $('#itemList').innerHTML=its.length?`<div class="list">${its.map(i=>{const st=stockOf(i.code),low=num(i.min)>0&&st<num(i.min);
     return `<div class="it"><input type="checkbox" data-sel="${esc(i.code)}"${sel.has(i.code)?' checked':''} aria-label="Выбрать ${esc(i.name)}"><button class="open" type="button" data-open="${esc(i.code)}"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.code)}${i.art?' · '+esc(i.art):''}${i.loc?' · <b>'+esc(i.loc)+'</b>':''}</div></button><div class="q ${low||st<0?'low':''}">${fq(st)}<small> ${esc(unitOf(i))}</small></div></div>`;}).join('')}</div>`
     :`<div class="card muted">${Object.keys(V.items).length?'Ничего не найдено.':'Позиций пока нет. Добавь вручную, загрузи список из Excel или нажми «Пример для показа».'}</div>`;}
@@ -720,9 +741,12 @@ $('#ct-qty').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ct-ok').click
 /* ---------- журнал ---------- */
 function renderLog(){const mv=Object.values(view().moves).sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,80);
   $('#moveList').innerHTML=mv.length?`<div class="list" style="padding:0 12px">${mv.map(moveRow).join('')}</div>`:'<div class="card muted">Движений пока нет.</div>';
-  $('#s-user').value=S.user||'';$('#s-wh').value=S.wh||'';renderConn();}
+  $('#s-user').value=S.user||'';$('#s-wh').value=S.wh||'';
+  if(document.activeElement!==$('#s-mach'))$('#s-mach').value=S.machines.join('\n');renderConn();}
 $('#s-user').addEventListener('input',e=>{S.user=e.target.value.trim();save();renderWho();});
 $('#s-wh').addEventListener('input',e=>{S.wh=e.target.value.trim();save();renderWho();});
+const parseMach=t=>[...new Set(String(t||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean))].slice(0,12);
+$('#s-mach').addEventListener('input',e=>{S.machines=parseMach(e.target.value);save();});
 const csvJoin=rows=>'﻿'+rows.map(r=>r.map(c=>{c=String(c==null?'':c);return /[;"\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(';')).join('\r\n');
 const dec=n=>String(Math.round(n*1000)/1000).replace('.',',');
 async function download(name,data){const blob=new Blob([data],{type:'text/csv;charset=utf-8'});
@@ -766,14 +790,15 @@ $('#syncBtn').onclick=sync;$('#cfg-test').onclick=sync;
 $('#cfg-url').addEventListener('input',e=>{S.cfg.url=e.target.value.trim();save();});
 $('#cfg-key').addEventListener('input',e=>{S.cfg.key=e.target.value.trim();save();});
 $('#cfg-share').onclick=async()=>{if(!S.cfg.url){toast('Сначала укажи адрес и ключ');return;}
-  const enc=btoa(unescape(encodeURIComponent(JSON.stringify({u:S.cfg.url,k:S.cfg.key||'',w:S.wh||''})))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const enc=btoa(unescape(encodeURIComponent(JSON.stringify({u:S.cfg.url,k:S.cfg.key||'',w:S.wh||'',m:S.machines,p:S.preset1c?1:0})))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   const link=BASE+'#cfg='+enc,text='Склад: открой ссылку и установи приложение — подключение настроится само:\n'+link;
   try{if(navigator.share){await navigator.share({title:'Склад',text});return;}}catch(e){if(e&&e.name==='AbortError')return;}
   try{await navigator.clipboard.writeText(link);toast('Ссылка скопирована. В ней ключ — не выкладывай в открытые чаты.');}catch(e){prompt('Ссылка для сотрудников:',link);}};
 function readHash(){const h=location.hash;if(!h)return;
   const m=/[#&]cfg=([\w-]+)/.exec(h);
   if(m){try{let b=m[1].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';const c=JSON.parse(decodeURIComponent(escape(atob(b))));
-    if(c&&c.u){S.cfg={url:String(c.u),key:String(c.k||'')};if(c.w&&!S.wh)S.wh=String(c.w);save();renderWho();renderConn();toast('Подключение к таблице настроено');}}catch(e){toast('Ссылка подключения повреждена');}}
+    if(c&&c.u){S.cfg={url:String(c.u),key:String(c.k||'')};if(c.w&&!S.wh)S.wh=String(c.w);
+      if(Array.isArray(c.m))S.machines=parseMach(c.m.join('\n'));if('p' in c)S.preset1c=!!c.p;S.welcomed=true;if($('#dlgHello').open)$('#dlgHello').close();save();renderWho();renderConn();toast('Подключение к таблице настроено');}}catch(e){toast('Ссылка подключения повреждена');}}
   else{const p=parseCode(h);setTimeout(()=>{if(p.loc)showLoc(p.loc);else if(p.item){if(view().items[p.item])openItem(p.item);else toast('Позиция '+p.item+' не найдена. Если её завели на другом телефоне — нажми «Отправить», чтобы обновить данные.');}},200);}
   try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}}
 window.addEventListener('hashchange',readHash);
@@ -784,6 +809,14 @@ function setTab(t){S.tab=t;save();$$('section.tab').forEach(s=>s.classList.toggl
 function renderActive(){const t=S.tab;if(t==='scan')renderScan();if(t==='items')renderItems();if(t==='inv')renderInv();if(t==='log')renderLog();}
 $$('nav.tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 renderWho();renderStatus();setTab(S.tab||'scan');readHash();autoSync(2000);
+
+/* ---------- первый запуск ---------- */
+function helloDone(){S.wh=$('#h-wh').value.trim()||S.wh;S.user=$('#h-user').value.trim()||S.user;S.welcomed=true;save();renderWho();$('#dlgHello').close();}
+$('#h-own').onclick=()=>{helloDone();setTab('log');window.open('nastrojka.html','_blank','noopener');};
+$('#h-try').onclick=()=>{helloDone();setTab('items');toast('Нажми «Пример для показа» или добавь свои позиции');};
+$('#dlgHello').addEventListener('cancel',()=>{S.welcomed=true;save();});
+/* welcomed:false бывает только у новой установки; страница может перезагрузиться при первом запуске (офлайн-кэш), поэтому смотрим флаг, а не FIRST */
+if(S.welcomed===false&&!S.cfg.url){$('#h-wh').value=S.wh||'';$('#h-user').value=S.user||'';$('#dlgHello').showModal();}
 
 /* ---------- установка и обновление ---------- */
 const isStandalone=()=>(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;

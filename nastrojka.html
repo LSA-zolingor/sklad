@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Склад: подключить таблицу</title>
+<meta name="theme-color" content="#24433A">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+:root{--paper:#ECEFEA;--card:#FFFFFF;--ink:#1A2421;--muted:#55615C;--line:#C8D0CB;--bar:#24433A;--barInk:#F2F6F4;--vis:#DD6410;--visInk:#FFFFFF;--soft:#FBE3D1;--ok:#2C8A57;
+  --cond:"Roboto Condensed","sans-serif-condensed","Arial Narrow",sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--paper:#121816;--card:#1B2320;--ink:#E4EAE7;--muted:#9AA8A2;--line:#33403B;--bar:#0E1513;--barInk:#E4EAE7;--vis:#F07E2C;--soft:#3E2716;--ok:#4CB17B}}
+:root[data-theme="dark"]{--paper:#121816;--card:#1B2320;--ink:#E4EAE7;--muted:#9AA8A2;--line:#33403B;--bar:#0E1513;--barInk:#E4EAE7;--vis:#F07E2C;--soft:#3E2716;--ok:#4CB17B}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.5 Roboto,"Segoe UI",system-ui,Arial,sans-serif;-webkit-text-size-adjust:100%}
+header{background:var(--bar);color:var(--barInk);padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px}
+header h1{margin:0;font:700 23px/1.15 var(--cond)}
+header p{margin:2px 0 0;opacity:.8;font-size:15px}
+main{max-width:760px;margin:0 auto;padding:14px 16px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+h2{font:600 21px/1.2 var(--cond);margin:0 0 8px;display:flex;gap:10px;align-items:baseline}
+h2 .n{flex:none;display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--vis);color:var(--visInk);font-size:17px}
+ol,ul{margin:6px 0;padding-left:22px}li{margin:3px 0}
+.muted{color:var(--muted);font-size:15px}
+b.ui{background:var(--soft);padding:0 4px;border-radius:4px;font-weight:600}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:8px 14px;border-radius:8px;border:1.5px solid var(--line);background:var(--card);font-family:inherit;font-size:16px;font-weight:600;line-height:1.2;color:inherit;text-decoration:none;cursor:pointer}
+.btn.main{background:var(--vis);border-color:var(--vis);color:var(--visInk)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+code.k{font:600 18px/1.3 ui-monospace,Consolas,monospace;background:var(--paper);border:1px dashed var(--line);padding:6px 10px;border-radius:6px;word-break:break-all}
+pre{max-height:240px;overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px;font:13px/1.4 ui-monospace,Consolas,monospace;white-space:pre}
+.warn{border-left:4px solid var(--vis)}
+#toast{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--paper);padding:12px 14px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none;text-align:center}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header><h1>Подключить свою таблицу</h1><p>Склад для вашей организации за 10 минут. Нужен аккаунт Google и компьютер.</p></header>
+<main>
+  <div class="card">
+    <p style="margin:0">Приложение одно для всех. Данные каждой организации хранятся в её собственной Google Таблице, и без вашего ключа доступа их никто не увидит. Таблицу и ключ настраивает один человек: руководитель, кладовщик или снабженец. Сотрудники потом просто открывают присланную ссылку.</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">1</span>Создать таблицу</h2>
+    <ol>
+      <li>Откройте <a href="https://sheets.new" target="_blank" rel="noopener">sheets.new</a>, это создаст новую Google Таблицу.</li>
+      <li>Назовите её, например «Склад ООО Ромашка».</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">2</span>Придумать ключ доступа</h2>
+    <p style="margin:0 0 6px">Ключ — это пароль, который защищает таблицу. Нажмите кнопку, ключ появится ниже и сразу встанет в код на шаге 3.</p>
+    <div class="row"><button class="btn main" id="gen" type="button">Сделать ключ</button><code class="k" id="key">ключ ещё не создан</code></div>
+    <p class="muted" style="margin:4px 0 0">Ключ создаётся на этом устройстве и никуда не отправляется. Запишите его. Не выкладывайте в открытые чаты.</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">3</span>Вставить скрипт</h2>
+    <ol>
+      <li>В таблице откройте меню <b class="ui">Расширения</b> → <b class="ui">Apps Script</b>.</li>
+      <li>Удалите всё, что там написано, и вставьте код (кнопка ниже копирует его вместе с вашим ключом).</li>
+      <li>Нажмите значок дискеты <b class="ui">Сохранить</b>.</li>
+    </ol>
+    <div class="row"><button class="btn main" id="copy" type="button">Скопировать код</button><a class="btn" id="dl" download="Code-sklad.gs" href="Code-sklad.gs">Скачать файлом</a></div>
+    <pre id="code">Загрузка кода…</pre>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">4</span>Опубликовать скрипт</h2>
+    <ol>
+      <li>Справа вверху: <b class="ui">Начать развёртывание</b> → <b class="ui">Новое развёртывание</b>.</li>
+      <li>Шестерёнка у «Выберите тип» → <b class="ui">Веб-приложение</b>.</li>
+      <li>«Запуск от имени»: <b class="ui">Я</b>. «У кого есть доступ»: <b class="ui">Все</b>.</li>
+      <li>Нажмите <b class="ui">Начать развёртывание</b> и разрешите доступ своему аккаунту. Если Google пишет «Приложение не проверено»: <b class="ui">Дополнительные настройки</b> → <b class="ui">Перейти на страницу…</b>. Это ваш собственный скрипт, он работает только с этой таблицей.</li>
+      <li>Скопируйте <b>URL веб-приложения</b>. Он заканчивается на <code>/exec</code>.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">5</span>Подключить приложение</h2>
+    <ol>
+      <li>Откройте <a href="./">приложение «Склад»</a> → вкладка <b class="ui">Журнал</b>.</li>
+      <li>Вставьте адрес скрипта и ключ, нажмите <b class="ui">Проверить и обновить</b>. Должно появиться «Данные обновлены».</li>
+      <li>Там же впишите название организации и кнопки быстрой выдачи (станки, машины, участки).</li>
+      <li>Загрузите список товаров: вкладка <b class="ui">Товары</b> → <b class="ui">Загрузить список</b> (можно вставить колонки из Excel).</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">6</span>Раздать сотрудникам</h2>
+    <ol>
+      <li>Во вкладке <b class="ui">Журнал</b> нажмите <b class="ui">Ссылка для сотрудников</b>.</li>
+      <li>Отправьте её каждому лично. Сотрудник открывает ссылку и устанавливает приложение на телефон. Таблица, ключ, название и кнопки выдачи настроятся сами.</li>
+    </ol>
+    <p class="muted" style="margin:6px 0 0">В таблице появятся листы «Остатки», «Движения», «Инвентаризации». Они пересобираются при каждой отправке, поэтому руками их не правьте. Скрытый лист «_данные» не трогайте.</p>
+  </div>
+
+  <div class="card warn">
+    <h2>Если что-то не так</h2>
+    <ul>
+      <li><b>«Неверный ключ доступа»</b> — ключ в приложении не совпадает с ключом в коде.</li>
+      <li><b>«Не тот адрес или скрипт развёрнут без доступа „Все“»</b> — повторите шаг 4, проверьте «У кого есть доступ: Все» и что адрес кончается на <code>/exec</code>.</li>
+      <li><b>Поменяли код скрипта</b> — нужно <b class="ui">Начать развёртывание</b> → <b class="ui">Управление развёртываниями</b> → карандаш → «Версия: новая» → <b class="ui">Развернуть</b>. Адрес останется тем же.</li>
+      <li><b>Сменить ключ</b> (если ссылка попала не тем людям) — поменяйте ключ в коде, разверните новую версию и разошлите новую ссылку.</li>
+    </ul>
+  </div>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+const $=s=>document.querySelector(s);
+let src='',key='';
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),3000);}
+function code(){return key?src.replace(/const ACCESS_KEY = '[^']*';/,`const ACCESS_KEY = '${key}';`):src;}
+function show(){$('#code').textContent=code()||'Не удалось загрузить код. Нажмите «Скачать файлом».';
+  if(key&&src){const u=URL.createObjectURL(new Blob([code()],{type:'text/plain;charset=utf-8'}));$('#dl').href=u;}}
+fetch('Code-sklad.gs',{cache:'no-cache'}).then(r=>{if(!r.ok)throw 0;return r.text();}).then(t=>{src=t;show();}).catch(()=>show());
+$('#gen').onclick=()=>{const a='23456789abcdefghjkmnpqrstuvwxyz',b=new Uint8Array(20);crypto.getRandomValues(b);
+  key='';b.forEach((x,i)=>{key+=a[x%a.length];if(i%5===4&&i<19)key+='-';});$('#key').textContent=key;show();toast('Ключ создан и вставлен в код');};
+$('#copy').onclick=async()=>{if(!src){toast('Код не загрузился, нажмите «Скачать файлом»');return;}
+  if(!key&&!confirm('Ключ ещё не создан. Скопировать код без ключа? Тогда впишите ключ вручную вместо ВПИШИ_КЛЮЧ.'))return;
+  try{await navigator.clipboard.writeText(code());toast('Код скопирован');}
+  catch(e){const r=document.createRange();r.selectNodeContents($('#code'));const s=getSelection();s.removeAllRanges();s.addRange(r);toast('Выделено: нажмите «Копировать»');}};
+</script>
+</body>
+</html>

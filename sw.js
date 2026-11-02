@@ -1,6 +1,6 @@
 /* Склад — офлайн-кэш. При выпуске новой версии увеличь VERSION. */
-const VERSION = 'sklad-v8';
-const FILES = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
+const VERSION = 'sklad-v9';
+const FILES = ['./', 'index.html', 'nastrojka.html', 'Code-sklad.gs', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 const JSQR = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
 
 self.addEventListener('install', e => {
@@ -27,6 +27,11 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (url.origin !== self.location.origin) return;
-  if (req.mode === 'navigate') { e.respondWith(caches.match('index.html').then(r => r || fetch(req))); return; }
+  if (req.mode === 'navigate') {
+    /* страница инструкции открывается сама собой, всё остальное внутри /sklad/ — приложение */
+    const page = url.pathname.endsWith('/nastrojka.html') ? 'nastrojka.html' : 'index.html';
+    e.respondWith(caches.match(page).then(r => r || fetch(req)));
+    return;
+  }
   e.respondWith(caches.match(req, {ignoreSearch: true}).then(r => r || fetch(req)));
 });
