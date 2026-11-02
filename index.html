@@ -161,7 +161,7 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
       Сканировать этикетку
     </button>
     <div class="card" style="margin-top:12px">
-      <label class="f">Или введи код с этикетки<input id="codeIn" type="text" autocapitalize="characters" autocomplete="off" placeholder="например K7F3QX"></label>
+      <label class="f">Или введи код, название или артикул<input id="codeIn" type="text" autocapitalize="characters" autocomplete="off" placeholder="код, название или артикул"></label>
       <button class="btn" id="codeGo" type="button" style="margin-top:8px">Открыть</button>
     </div>
     <div class="stats" id="scanStats"></div>
@@ -465,9 +465,17 @@ function parseCode(raw){raw=String(raw||'').trim();
 function handleCode(raw){const p=parseCode(raw),V=view();
   if(p.loc){showLoc(p.loc);return;}
   let c=p.item;if(!V.items[c]){const f=Object.values(V.items).find(i=>(i.art||'').toUpperCase().replace(/\s/g,'')===c);if(f)c=f.code;}
-  if(!V.items[c]){toast('Код '+p.item+' не найден на этом складе');return;}
+  if(!V.items[c]&&!/#[il]=/.test(String(raw))){const f=findItems(raw);
+    if(f.length===1)c=f[0].code;
+    else if(f.length>1&&scanMode!=='count'){setTab('items');$('#q').value=String(raw).trim();renderItems();toast('Найдено позиций: '+f.length);return;}}
+  if(!V.items[c]){toast('«'+String(raw).trim()+'» не найдено: ни в коде, ни в названии, ни в артикуле');return;}
   if(scanMode==='count'&&activeInv()){openCount(c);return;}
   openItem(c);}
+/* поиск по всем полям: код, название, артикул 1С, кат. №, группа, ячейка; без учёта регистра, пробелов, вида тире
+   и раскладки для одинаковых на вид букв (русская С = латинская C) */
+const normQ=x=>String(x||'').toLowerCase().replace(/ё/g,'е').replace(/[\u2010-\u2015\u2212]/g,'-').replace(/\s+/g,'').replace(/[авекмнорстух]/g,ch=>'abekmhopctyx'['авекмнорстух'.indexOf(ch)]);
+const itemHit=(i,q)=>[i.code,i.name,i.art,i.note,i.cat,i.loc].some(x=>normQ(x).includes(q));
+function findItems(raw){const q=normQ(raw);if(!q)return[];return Object.values(view().items).filter(i=>itemHit(i,q));}
 function showLoc(loc){setTab('items');$('#q').value=loc;renderItems();toast('Ячейка '+loc);}
 
 /* ---------- камера ---------- */
@@ -582,7 +590,7 @@ function renderItems(){const V=view(),q=$('#q').value.trim().toLowerCase();
   const cats=[...new Set(Object.values(V.items).map(i=>i.cat).filter(Boolean))].sort();
   $('#flt').innerHTML=[['all','Все'],['low','Ниже минимума'],['zero','Нет в наличии']].concat(cats.map(c=>['c:'+c,c])).map(([k,l])=>`<button type="button" data-f="${esc(k)}" aria-pressed="${filt===k}">${esc(l)}</button>`).join('');
   let its=Object.values(V.items);
-  if(q)its=its.filter(i=>[i.name,i.code,i.art,i.loc,i.cat].some(x=>String(x||'').toLowerCase().includes(q)));
+  if(q){const nq=normQ(q);its=its.filter(i=>itemHit(i,nq));}
   if(filt==='low')its=its.filter(i=>num(i.min)>0&&stockOf(i.code)<num(i.min));
   else if(filt==='zero')its=its.filter(i=>stockOf(i.code)<=0);
   else if(filt.startsWith('c:'))its=its.filter(i=>i.cat===filt.slice(2));
