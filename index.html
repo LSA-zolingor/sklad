@@ -229,8 +229,8 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
 </main>
 
 <nav class="tabs" aria-label="Разделы">
-  <button type="button" data-tab="scan" class="on">Скан</button>
-  <button type="button" data-tab="items">Товары</button>
+  <button type="button" data-tab="scan" class="on">Поиск</button>
+  <button type="button" data-tab="items">Склад</button>
   <button type="button" data-tab="inv">Инвентар.</button>
   <button type="button" data-tab="log">Журнал</button>
 </nav>
@@ -465,14 +465,14 @@ const pending=()=>Object.keys(S.dItems).length+Object.keys(S.dMoves).length+Obje
 function renderStatus(){const b=$('#syncBtn'),n=pending();b.classList.toggle('pending',n>0);b.disabled=syncing;
   b.textContent=syncing?'Отправка…':n?(navigator.onLine?`Отправить (${n})`:`Не отправлено (${n})`):(S.cfg.url?'Всё отправлено':'Таблица');}
 
-/* ---------- вкладка «Скан» ---------- */
+/* ---------- вкладка «Поиск» ---------- */
 function renderScan(){const V=view(),its=Object.values(V.items);
   const low=its.filter(i=>num(i.min)>0&&stockOf(i.code)<num(i.min));
   $('#scanStats').innerHTML=`<div><strong>${its.length}</strong><span>позиций</span></div><div><strong>${new Set(its.map(i=>i.loc).filter(Boolean)).size}</strong><span>адресов</span></div><div><strong class="${low.length?'low':''}">${low.length}</strong><span>ниже минимума</span></div>`;
   $('#scanLow').innerHTML=low.length?`<div class="card"><h2>Пора заказать</h2>${low.slice(0,8).map(i=>`<div class="it" style="grid-template-columns:1fr auto;padding:8px 0"><button class="open" type="button" data-open="${esc(i.code)}"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.code)}${i.loc?' · '+esc(i.loc):''}</div></button><div class="q low">${fq(stockOf(i.code))}<small> / мин ${fq(num(i.min))} ${esc(unitOf(i))}</small></div></div>`).join('')}</div>`:'';
   const mv=Object.values(V.moves).sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,6);
   $('#scanLast').innerHTML=mv.length?`<div class="card"><h2>Последние операции</h2>${mv.map(moveRow).join('')}</div>`
-    :(its.length?'':'<div class="card"><h2>С чего начать</h2><ol style="margin:0;padding-left:22px"><li>Вкладка «Товары»: добавь позиции или загрузи список из Excel.</li><li>Напечатай этикетки и наклей на ячейки и товар.</li><li>Дальше всё через «Сканировать»: приход, выдача, перемещение, инвентаризация.</li></ol></div>');
+    :(its.length?'':'<div class="card"><h2>С чего начать</h2><ol style="margin:0;padding-left:22px"><li>Вкладка «Склад»: добавь позиции или загрузи список из Excel.</li><li>Напечатай этикетки и наклей на ячейки и товар.</li><li>Дальше всё через «Сканировать»: приход, выдача, перемещение, инвентаризация.</li></ol></div>');
 }
 const TYPES={in:'Приход',out:'Расход',move:'Перемещение',adj:'Инвентаризация'};
 function moveRow(m){const it=view().items[m.code];const s=m.type==='out'?'−':m.type==='move'?'':'+';
@@ -650,7 +650,7 @@ $('#pn-ok').onclick=async()=>{if(S.pin&&(await pinHash($('#pn-old').value.trim()
   S.pin=await pinHash(a);save();renderPin();$('#dlgPin').close();toast('Пароль сохранён. Разошли «Ссылку для сотрудников» заново.');};
 renderPin();
 
-/* ---------- вкладка «Товары» ---------- */
+/* ---------- вкладка «Склад» ---------- */
 let filt='all';const sel=new Set();
 function renderItems(){const V=view(),q=$('#q').value.trim().toLowerCase();
   const cats=[...new Set(Object.values(V.items).map(i=>i.cat).filter(Boolean))].sort();
@@ -755,7 +755,7 @@ function renderInv(){const box=$('#invBody'),V=view(),inv=activeInv();
       <label class="f">Название<input id="iv-name" type="text" value="Инвентаризация ${today().split('-').reverse().join('.')}"></label>
       <label class="f" style="margin-top:8px">Что считаем<select id="iv-scope"><option value="">Весь склад</option>${locs.map(l=>`<option value="${esc(l)}">Зона ${esc(l)}</option>`).join('')}</select></label>
       <button class="btn main big" id="iv-start" type="button" style="margin-top:12px">Начать</button></div>`+histHTML;
-    $('#iv-start').onclick=()=>{if(!Object.keys(V.items).length){toast('Сначала добавь позиции на вкладке «Товары»');return;}
+    $('#iv-start').onclick=()=>{if(!Object.keys(V.items).length){toast('Сначала добавь позиции на вкладке «Склад»');return;}
       const v={id:'inv-'+Date.now().toString(36)+'-'+rid(),name:$('#iv-name').value.trim()||'Инвентаризация',scope:$('#iv-scope').value,started:new Date().toISOString(),by:S.user||'',counts:{},closed:false};
       saveInv(v);S.invActive=v.id;save();renderInv();};return;}
   const scope=invScope(inv),counted=scope.filter(i=>inv.counts[i.code]).length;
