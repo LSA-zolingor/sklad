@@ -162,7 +162,8 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
     </button>
     <div class="card" style="margin-top:12px">
       <label class="f">Или введи код, название или артикул<input id="codeIn" type="text" autocapitalize="characters" autocomplete="off" placeholder="код, название или артикул"></label>
-      <div class="row" style="margin-top:8px"><button class="btn" id="codeGo" type="button">Открыть</button><button class="btn" id="voiceGo" type="button" hidden>🎤 Сказать</button></div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="codeGo" type="button">Открыть</button><button class="btn" id="voiceGo" type="button" hidden>🎤 Сказать</button><button class="btn" id="scanAdd" type="button">＋ Новая позиция</button></div>
+      <div id="notFound" hidden style="margin-top:8px"><p class="hint" id="notFoundT" style="margin:0 0 6px"></p><button class="btn main" id="notFoundAdd" type="button"></button></div>
       <p class="hint" id="voiceHint" hidden style="margin:6px 0 0"></p>
     </div>
     <div class="stats" id="scanStats"></div>
@@ -491,7 +492,10 @@ function handleCode(raw){const p=parseCode(raw),V=view();
   if(!V.items[c]&&!/#[il]=/.test(String(raw))){const f=findItems(raw);
     if(f.length===1)c=f[0].code;
     else if(f.length>1&&scanMode!=='count'){setTab('items');$('#q').value=String(raw).trim();renderItems();toast('Найдено позиций: '+f.length);return;}}
-  if(!V.items[c]){toast('«'+String(raw).trim()+'» не найдено: ни в коде, ни в названии, ни в артикуле');return;}
+  if(!V.items[c]){const r=String(raw).trim();toast('«'+r+'» не найдено: ни в коде, ни в названии, ни в артикуле');
+    if(!/#[il]=/.test(r)&&scanMode!=='count'){setTab('scan');$('#notFoundT').textContent='«'+r+'» нет на складе. Если это новая запчасть — добавь её:';$('#notFoundAdd').textContent='＋ Добавить «'+r+'»';$('#notFoundAdd').dataset.name=r;$('#notFound').hidden=false;}
+    return;}
+  $('#notFound').hidden=true;
   if(scanMode==='count'&&activeInv()){openCount(c);return;}
   openItem(c);}
 /* поиск по всем полям: код, название, артикул 1С, кат. №, группа, ячейка; без учёта регистра, пробелов, вида тире
@@ -548,7 +552,7 @@ function openItem(code){const V=view(),it=V.items[code];if(!it){toast('Пози�
   ${it.note?`<p style="margin:0">${esc(it.note)}</p>`:''}
   <div class="grid2"><button class="btn main big" type="button" data-op="in">Приход</button><button class="btn main big" type="button" data-op="out">Расход</button><button class="btn" type="button" data-op="move">Переместить</button><button class="btn" type="button" id="it-edit">Изменить</button></div>
   <div><div class="muted" style="font-size:14px;margin-bottom:4px">Выдать на станок</div><div class="grid2">${MACHINES.map(m=>`<button class="btn main big" type="button" data-mach="${esc(m)}">${esc(m)}</button>`).join('')}</div></div>
-  <button class="btn" type="button" id="it-print">Напечатать этикетку</button>
+  <div class="grid2"><button class="btn" type="button" id="it-print">Напечатать этикетку</button><button class="btn danger" type="button" id="it-del">🗑 Удалить позицию</button></div>
   ${mv.length?`<div><h3 style="font-size:18px;margin:4px 0">Движения</h3>${mv.map(undoRow).join('')}</div>`:''}`;
   if(!$('#dlgItem').open)$('#dlgItem').showModal();}
 /* отмена ошибочной записи: встречная операция, исходная запись остаётся в истории */
@@ -568,6 +572,7 @@ $('#itemBody').addEventListener('click',ev=>{const t=ev.target.closest('button')
   if(t.dataset.op){openMove(t.dataset.op);return;}
   if(t.dataset.mach){openMove('out',t.dataset.mach);return;}
   if(t.id==='it-edit'){openEdit(cur);return;}
+  if(t.id==='it-del'){deleteItem(cur);return;}
   if(t.id==='it-print'){$('#dlgItem').close();openPrint([cur],'items');}});
 
 /* ---------- операции ---------- */
@@ -616,9 +621,12 @@ $('#ed-ok').onclick=()=>{const name=$('#ed-name').value.trim();if(!name){toast('
   const it=Object.assign({},base,{name,art:$('#ed-art').value.trim(),unit:$('#ed-unit').value,loc:$('#ed-loc').value.trim().toUpperCase(),cat:$('#ed-cat').value.trim(),min:$('#ed-min').value.trim(),note:$('#ed-note').value.trim()});
   putItem(it);const q=num($('#ed-qty').value,0);if(!editCode&&q>0)addMove({code:it.code,type:'in',qty:q,whom:'начальный остаток'});
   $('#dlgEdit').close();renderActive();openItem(it.code);toast(editCode?'Сохранено':'Позиция '+it.code+' создана');};
-$('#ed-del').onclick=()=>{const it=view().items[editCode];if(!it)return;
-  askSure('Удалить позицию',`Вы уверены, что хотите удалить позицию «${it.name}» (${it.code})? Остаток и история пропадут из списка.`,'Да, удалить',()=>{putItem(Object.assign({},view().items[editCode],{deleted:true}));$('#dlgEdit').close();renderActive();toast('Позиция удалена');});};
+$('#ed-del').onclick=()=>deleteItem(editCode);
+function deleteItem(code){const it=view().items[code];if(!it)return;
+  askSure('Удалить позицию',`Вы уверены, что хотите удалить позицию «${it.name}» (${it.code})? Остаток и история пропадут из списка.`,'Да, удалить',()=>{putItem(Object.assign({},view().items[code],{deleted:true}));if($('#dlgEdit').open)$('#dlgEdit').close();if($('#dlgItem').open)$('#dlgItem').close();renderActive();toast('Позиция удалена');});}
 $('#addItem').onclick=()=>openEdit(null);
+$('#scanAdd').onclick=()=>openEdit(null);
+$('#notFoundAdd').onclick=()=>{const n=$('#notFoundAdd').dataset.name||'';$('#notFound').hidden=true;openEdit(null);$('#ed-name').value=n;$('#ed-name').focus();};
 
 /* подтверждение добавления/удаления: имя обязательно, пароль — если задан.
    Защита от ошибок, а не от взлома: пароль хранится на телефоне в виде хэша. */
