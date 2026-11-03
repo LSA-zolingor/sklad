@@ -204,6 +204,11 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
       </div>
     </div>
     <div class="card">
+      <h2>Пароль на добавление и удаление позиций</h2>
+      <p class="hint" id="pinState" style="margin:0 0 10px"></p>
+      <button class="btn" id="pinSet" type="button">Задать пароль</button>
+    </div>
+    <div class="card">
       <h2>Подключение к Google Таблице</h2>
       <p class="hint" id="connState" style="margin:0 0 10px"></p>
       <label class="f">Адрес скрипта таблицы<input id="cfg-url" type="url" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec"></label>
@@ -294,6 +299,22 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
 </div></dialog>
 
 <!-- импорт -->
+<dialog id="dlgSure"><div class="dbody">
+  <h3 id="su-title">Подтверждение</h3>
+  <p id="su-text" style="margin:0;font-size:17px"></p>
+  <label class="f">Ваше имя (обязательно)<input id="su-name" type="text" autocomplete="name"></label>
+  <label class="f" id="su-pinL">Пароль<input id="su-pin" type="password" inputmode="numeric" autocomplete="off"></label>
+  <p class="hint" id="su-hint" style="margin:0"></p>
+  <div class="row" style="justify-content:flex-end"><button class="btn ghost" id="su-cancel" type="button">Отмена</button><button class="btn main" id="su-ok" type="button">Да</button></div>
+</div></dialog>
+<dialog id="dlgPin"><div class="dbody">
+  <h3>Пароль на добавление и удаление</h3>
+  <label class="f" id="pn-oldL">Старый пароль<input id="pn-old" type="password" inputmode="numeric" autocomplete="off"></label>
+  <label class="f">Новый пароль (не короче 4 знаков)<input id="pn-new" type="password" inputmode="numeric" autocomplete="off"></label>
+  <label class="f">Новый пароль ещё раз<input id="pn-new2" type="password" inputmode="numeric" autocomplete="off"></label>
+  <p class="hint" style="margin:0">Пароль попадёт в «Ссылку для сотрудников»: разошли её заново, чтобы он появился у всех.</p>
+  <div class="row" style="justify-content:flex-end"><button class="btn ghost" id="pn-cancel" type="button">Отмена</button><button class="btn main" id="pn-ok" type="button">Сохранить</button></div>
+</div></dialog>
 <dialog id="dlgImport"><div class="dbody">
   <h3>Загрузить список</h3>
   <p class="hint" style="margin:0">По одной позиции в строке, через точку с запятой или табуляцию (можно скопировать из Excel):<br>Наименование; Артикул; Единица; Адрес; Остаток; Мин. остаток</p>
@@ -589,13 +610,37 @@ function openEdit(code){editCode=code||null;const it=code?view().items[code]:{un
   if($('#dlgItem').open)$('#dlgItem').close();$('#dlgEdit').showModal();}
 $('#ed-cancel').onclick=()=>{$('#dlgEdit').close();if(editCode)openItem(editCode);};
 $('#ed-ok').onclick=()=>{const name=$('#ed-name').value.trim();if(!name){toast('Нужно наименование');return;}
+  if(!editCode&&!$('#ed-ok').dataset.ok){askSure('Добавить позицию',`Вы уверены, что хотите добавить позицию «${name}»?`,'Да, добавить',()=>{$('#ed-ok').dataset.ok='1';$('#ed-ok').click();});return;}
+  delete $('#ed-ok').dataset.ok;
   const base=editCode?view().items[editCode]:{code:newCode(),created:new Date().toISOString()};
   const it=Object.assign({},base,{name,art:$('#ed-art').value.trim(),unit:$('#ed-unit').value,loc:$('#ed-loc').value.trim().toUpperCase(),cat:$('#ed-cat').value.trim(),min:$('#ed-min').value.trim(),note:$('#ed-note').value.trim()});
   putItem(it);const q=num($('#ed-qty').value,0);if(!editCode&&q>0)addMove({code:it.code,type:'in',qty:q,whom:'начальный остаток'});
   $('#dlgEdit').close();renderActive();openItem(it.code);toast(editCode?'Сохранено':'Позиция '+it.code+' создана');};
-$('#ed-del').onclick=()=>{const b=$('#ed-del');if(!b.dataset.arm){b.dataset.arm='1';b.textContent='Точно удалить?';setTimeout(()=>{delete b.dataset.arm;b.textContent='Удалить';},4000);return;}
-  delete b.dataset.arm;b.textContent='Удалить';putItem(Object.assign({},view().items[editCode],{deleted:true}));$('#dlgEdit').close();renderActive();toast('Позиция удалена');};
+$('#ed-del').onclick=()=>{const it=view().items[editCode];if(!it)return;
+  askSure('Удалить позицию',`Вы уверены, что хотите удалить позицию «${it.name}» (${it.code})? Остаток и история пропадут из списка.`,'Да, удалить',()=>{putItem(Object.assign({},view().items[editCode],{deleted:true}));$('#dlgEdit').close();renderActive();toast('Позиция удалена');});};
 $('#addItem').onclick=()=>openEdit(null);
+
+/* подтверждение добавления/удаления: имя обязательно, пароль — если задан.
+   Защита от ошибок, а не от взлома: пароль хранится на телефоне в виде хэша. */
+const pinHash=async v=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('sklad-pin:'+v));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');};
+let sureCb=null;
+function askSure(title,text,okText,cb){sureCb=cb;$('#su-title').textContent=title;$('#su-text').textContent=text;$('#su-ok').textContent=okText;
+  $('#su-name').value=S.user||'';$('#su-pin').value='';$('#su-pinL').hidden=!S.pin;
+  $('#su-hint').textContent=S.pin?'':'Пароль пока не задан. Задать: вкладка «Журнал» → «Задать пароль».';$('#dlgSure').showModal();
+  setTimeout(()=>(S.user?(S.pin?$('#su-pin'):$('#su-ok')):$('#su-name')).focus(),50);}
+$('#su-cancel').onclick=()=>{sureCb=null;$('#dlgSure').close();};
+$('#su-ok').onclick=async()=>{const name=$('#su-name').value.trim();if(name.length<2){toast('Впиши своё имя');$('#su-name').focus();return;}
+  if(S.pin&&(await pinHash($('#su-pin').value.trim()))!==S.pin){toast('Неверный пароль');$('#su-pin').value='';$('#su-pin').focus();return;}
+  if(name!==S.user){S.user=name;save();renderWho();const u=$('#s-user');if(u)u.value=name;}
+  const cb=sureCb;sureCb=null;$('#dlgSure').close();if(cb)cb();};
+$('#su-pin').addEventListener('keydown',e=>{if(e.key==='Enter')$('#su-ok').click();});
+function renderPin(){const e=$('#pinState');if(e)e.textContent=S.pin?'Пароль задан. Без него нельзя добавить или удалить позицию.':'Пароль не задан: при добавлении и удалении спрашивается только имя.';$('#pinSet').textContent=S.pin?'Сменить пароль':'Задать пароль';}
+$('#pinSet').onclick=()=>{['#pn-old','#pn-new','#pn-new2'].forEach(x=>$(x).value='');$('#pn-oldL').hidden=!S.pin;$('#dlgPin').showModal();};
+$('#pn-cancel').onclick=()=>$('#dlgPin').close();
+$('#pn-ok').onclick=async()=>{if(S.pin&&(await pinHash($('#pn-old').value.trim()))!==S.pin){toast('Старый пароль неверный');return;}
+  const a=$('#pn-new').value.trim(),b=$('#pn-new2').value.trim();if(a.length<4){toast('Пароль не короче 4 знаков');return;}if(a!==b){toast('Пароли не совпадают');return;}
+  S.pin=await pinHash(a);save();renderPin();$('#dlgPin').close();toast('Пароль сохранён. Разошли «Ссылку для сотрудников» заново.');};
+renderPin();
 
 /* ---------- вкладка «Товары» ---------- */
 let filt='all';const sel=new Set();
@@ -631,7 +676,8 @@ function importLines(lines){let n=0;
   return n;}
 $('#importBtn').onclick=()=>{$('#im-text').value='';$('#dlgImport').showModal();};
 $('#im-cancel').onclick=()=>$('#dlgImport').close();
-$('#im-ok').onclick=()=>{const n=importLines($('#im-text').value.split(/\r?\n/));$('#dlgImport').close();renderActive();toast(n?`Загружено позиций: ${n}`:'Не нашёл ни одной строки');};
+$('#im-ok').onclick=()=>{const k=$('#im-text').value.split(/\r?\n/).filter(l=>l.trim()&&!/^наимен/i.test(l.trim())).length;if(!k){toast('Вставь строки из Excel');return;}
+  askSure('Загрузить список',`Вы уверены, что хотите добавить позиций: ${k}?`,'Да, добавить',()=>{const n=importLines($('#im-text').value.split(/\r?\n/));$('#dlgImport').close();renderActive();toast(n?`Загружено позиций: ${n}`:'Не нашёл ни одной строки');});};
 $('#demoBtn').onclick=()=>{const n=importLines([
   'Коронка штыревая 115 мм;JK-B115;шт;А-01-01;14;6;Буровой инструмент',
   'Коронка штыревая 140 мм;JK-B140;шт;А-01-02;6;4;Буровой инструмент',
@@ -787,14 +833,14 @@ $('#syncBtn').onclick=sync;$('#cfg-test').onclick=sync;
 $('#cfg-url').addEventListener('input',e=>{S.cfg.url=e.target.value.trim();save();});
 $('#cfg-key').addEventListener('input',e=>{S.cfg.key=e.target.value.trim();save();});
 $('#cfg-share').onclick=async()=>{if(!S.cfg.url){toast('Сначала укажи адрес и ключ');return;}
-  const enc=btoa(unescape(encodeURIComponent(JSON.stringify({u:S.cfg.url,k:S.cfg.key||'',w:S.wh||''})))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const enc=btoa(unescape(encodeURIComponent(JSON.stringify({u:S.cfg.url,k:S.cfg.key||'',w:S.wh||'',p:S.pin||''})))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   const link=BASE+'#cfg='+enc,text='Склад: открой ссылку и установи приложение — подключение настроится само:\n'+link;
   try{if(navigator.share){await navigator.share({title:'Склад',text});return;}}catch(e){if(e&&e.name==='AbortError')return;}
   try{await navigator.clipboard.writeText(link);toast('Ссылка скопирована. В ней ключ — не выкладывай в открытые чаты.');}catch(e){prompt('Ссылка для сотрудников:',link);}};
 function readHash(){const h=location.hash;if(!h)return;
   const m=/[#&]cfg=([\w-]+)/.exec(h);
   if(m){try{let b=m[1].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';const c=JSON.parse(decodeURIComponent(escape(atob(b))));
-    if(c&&c.u){S.cfg={url:String(c.u),key:String(c.k||'')};if(c.w&&!S.wh)S.wh=String(c.w);save();renderWho();renderConn();toast('Подключение к таблице настроено');}}catch(e){toast('Ссылка подключения повреждена');}}
+    if(c&&c.u){S.cfg={url:String(c.u),key:String(c.k||'')};if(c.w&&!S.wh)S.wh=String(c.w);if(c.p)S.pin=String(c.p);save();renderPin();renderWho();renderConn();toast('Подключение к таблице настроено');}}catch(e){toast('Ссылка подключения повреждена');}}
   else{const p=parseCode(h);setTimeout(()=>{if(p.loc)showLoc(p.loc);else if(p.item){if(view().items[p.item])openItem(p.item);else toast('Позиция '+p.item+' не найдена. Если её завели на другом телефоне — нажми «Отправить», чтобы обновить данные.');}},200);}
   try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}}
 window.addEventListener('hashchange',readHash);
