@@ -100,14 +100,28 @@ input:focus,select:focus,textarea:focus{border-color:var(--vis);outline:none}
 .tbl th{color:var(--muted);font-weight:500}
 .tbl td.n{text-align:right;white-space:nowrap}
 .muted{color:var(--muted)}
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom,0px)}
-nav.tabs button{border:0;background:transparent;min-height:62px;font:600 17px/1.1 var(--cond);color:var(--muted);border-top:3px solid transparent}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.tabs button{border:0;background:transparent;min-height:62px;font:600 15px/1.1 var(--cond);padding:0 2px;color:var(--muted);border-top:3px solid transparent}
 nav.tabs button.on{color:var(--ink);border-top-color:var(--vis)}
 dialog{border:0;border-radius:14px;padding:0;width:min(560px,94vw);background:var(--card);color:var(--ink);max-height:92vh}
 dialog::backdrop{background:rgba(8,12,10,.6)}
 dialog .dbody{padding:16px;display:flex;flex-direction:column;gap:12px}
 dialog h3{margin:0;font-size:24px}
 dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;border-radius:0;background:#000;color:#fff}
+dialog.zfull{background:var(--paper);color:var(--ink);padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+.drawwrap{display:flex;flex-direction:column;height:100%}
+.drawhead{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bar);color:var(--barInk)}
+.drawhead h3{flex:1;margin:0;font-size:22px}
+.drawhead .btn{background:transparent;color:var(--barInk);border-color:rgba(255,255,255,.35)}
+.drawbody{flex:1;overflow:auto;padding:12px;max-width:900px;width:100%;margin:0 auto;box-sizing:border-box}
+.drawfoot{padding:10px 12px;border-top:1px solid var(--line);display:flex;gap:8px;background:var(--card)}
+.rec{display:grid;grid-template-columns:40px 1fr auto;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);align-items:center;font-size:15px}
+.rec.hl{background:var(--soft);border-radius:6px}
+.rec .no{font:700 18px/1 var(--cond);text-align:center}
+.rec .t{color:var(--muted);font-size:13px}
+.splink{all:unset;box-sizing:border-box;display:block;width:100%;padding:9px 4px;border-bottom:1px solid var(--line);cursor:pointer;line-height:1.35}
+.splink:focus-visible{outline:3px solid var(--vis)}
+mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
 .cam{position:relative;height:100%;display:flex;flex-direction:column}
 .cam video{flex:1;width:100%;min-height:0;object-fit:cover;background:#000}
 .cam .frame{position:absolute;left:50%;top:42%;width:min(68vw,320px);aspect-ratio:1;transform:translate(-50%,-50%);border:4px solid rgba(255,255,255,.9);border-radius:18px;box-shadow:0 0 0 2000px rgba(0,0,0,.35);pointer-events:none}
@@ -163,7 +177,7 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
     <div class="card" style="margin-top:12px">
       <label class="f">Или введи код, название или артикул<input id="codeIn" type="text" autocapitalize="characters" autocomplete="off" placeholder="код, название или артикул"></label>
       <div class="row" style="margin-top:8px"><button class="btn" id="codeGo" type="button">Открыть</button><button class="btn" id="voiceGo" type="button" hidden>🎤 Сказать</button><button class="btn" id="scanAdd" type="button">＋ Новая позиция</button></div>
-      <div id="notFound" hidden style="margin-top:8px"><p class="hint" id="notFoundT" style="margin:0 0 6px"></p><button class="btn main" id="notFoundAdd" type="button"></button></div>
+      <div id="notFound" hidden style="margin-top:8px"><p class="hint" id="notFoundT" style="margin:0 0 6px"></p><button class="btn main" id="notFoundAdd" type="button"></button> <button class="btn" id="notFoundKat" type="button" hidden></button></div>
       <p class="hint" id="voiceHint" hidden style="margin:6px 0 0"></p>
     </div>
     <div class="stats" id="scanStats"></div>
@@ -190,6 +204,15 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
       <button class="btn" id="preset1cBtn" type="button">Загрузить 149 позиций из 1С</button>
       <button class="btn" id="presetLocBtn" type="button" hidden>Разнести по ячейкам JKsz</button>
     </div>
+  </section>
+
+  <!-- КАТАЛОГ -->
+  <section class="tab" id="tab-kat"><div id="katBody"></div>
+    <details class="card" id="catalogs" style="margin-top:12px">
+      <summary style="font-weight:700;font-size:18px;cursor:pointer">📄 PDF: каталоги двигателя, компрессора, схемы</summary>
+      <p class="hint" style="margin:8px 0 0">Открываются с Google Диска, нужен интернет. Нажми ⋮ → «Скачать», чтобы файл был в телефоне без связи.</p>
+      <a class="btn" href="https://drive.google.com/file/d/1g_B6UuooQHXTM9tBQ_ZHcisDYSXi-aHp/view" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;gap:8px;text-align:left;text-decoration:none;color:inherit;align-items:center;margin-top:6px"><span>📄 Каталог запчастей станка</span><span class="hint" style="margin:0;white-space:nowrap">9 МБ</span></a><a class="btn" href="https://drive.google.com/file/d/1UI3lc6Sb0uKqQ7pRRdldovr9StNb0y0d/view" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;gap:8px;text-align:left;text-decoration:none;color:inherit;align-items:center;margin-top:6px"><span>📄 Каталог запчастей двигателя SO70346</span><span class="hint" style="margin:0;white-space:nowrap">20 МБ</span></a><a class="btn" href="https://drive.google.com/file/d/1xVpuzv6mS9i2NnP9UMa0pDaiP-7zC8r4/view" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;gap:8px;text-align:left;text-decoration:none;color:inherit;align-items:center;margin-top:6px"><span>📄 Каталог запчастей компрессора XRVS1100</span><span class="hint" style="margin:0;white-space:nowrap">21 МБ</span></a><a class="btn" href="https://drive.google.com/file/d/1ls5azAfI5rl2mPEWac2AA1L_tr2BCW-V/view" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;gap:8px;text-align:left;text-decoration:none;color:inherit;align-items:center;margin-top:6px"><span>📄 Каталог шлангов</span><span class="hint" style="margin:0;white-space:nowrap">2,5 МБ</span></a><a class="btn" href="https://drive.google.com/file/d/1IcoiETX5s69cokuPZWwvfJaox1_WICaP/view" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;gap:8px;text-align:left;text-decoration:none;color:inherit;align-items:center;margin-top:6px"><span>📄 Схема гидравлики</span><span class="hint" style="margin:0;white-space:nowrap">1,5 МБ</span></a><a class="btn" href="https://drive.google.com/file/d/1QcXHDrNmaANtGXNF3DMg9XXl9lpRCHrm/view" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;gap:8px;text-align:left;text-decoration:none;color:inherit;align-items:center;margin-top:6px"><span>📄 Схема пневматики</span><span class="hint" style="margin:0;white-space:nowrap">0,1 МБ</span></a><a class="btn" href="https://drive.google.com/file/d/1fdQngMotBAlvV_1ODDdEM4-M_Ow7RGrU/view" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;gap:8px;text-align:left;text-decoration:none;color:inherit;align-items:center;margin-top:6px"><span>📄 Электросхема</span><span class="hint" style="margin:0;white-space:nowrap">0,9 МБ</span></a><a class="btn" href="https://drive.google.com/file/d/1gJD3oOTAHjRMteDSd-NQrdPRDprsyA_P/view" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;gap:8px;text-align:left;text-decoration:none;color:inherit;align-items:center;margin-top:6px"><span>📄 Инструкция (станки 2024 г.)</span><span class="hint" style="margin:0;white-space:nowrap">6 МБ</span></a><a class="btn" href="https://drive.google.com/file/d/1W2WcT0t4SmQAGHmhpkNvHh-JBcqS6mF6/view" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;gap:8px;text-align:left;text-decoration:none;color:inherit;align-items:center;margin-top:6px"><span>📄 Инструкция по эксплуатации JK830-2</span><span class="hint" style="margin:0;white-space:nowrap">1,8 МБ</span></a>
+    </details>
   </section>
 
   <!-- ИНВЕНТАРИЗАЦИЯ -->
@@ -231,6 +254,7 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
 <nav class="tabs" aria-label="Разделы">
   <button type="button" data-tab="scan" class="on">Поиск</button>
   <button type="button" data-tab="items">Склад</button>
+  <button type="button" data-tab="kat">Каталог</button>
   <button type="button" data-tab="inv">Инвентар.</button>
   <button type="button" data-tab="log">Журнал</button>
 </nav>
@@ -248,6 +272,15 @@ dialog.full{width:100vw;max-width:100vw;height:100%;max-height:100%;margin:0;bor
 
 <!-- карточка товара -->
 <dialog id="dlgItem"><div class="dbody" id="itemBody"></div></dialog>
+<dialog id="dlgZch" class="full zfull"><div class="drawwrap">
+  <div class="drawhead"><h3 style="font-size:19px;line-height:1.15"><span id="zTitle"></span><small id="zSub" style="display:block;font:400 13px Roboto,system-ui,sans-serif;opacity:.8"></small></h3><button class="btn" id="zClose" type="button">Закрыть</button></div>
+  <div class="row" style="padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line)">
+    <span class="muted" id="zPg" style="font-size:14px"></span>
+    <span class="row" style="margin-left:auto"><button class="btn" id="zZout" type="button" aria-label="Уменьшить">−</button><button class="btn" id="zZin" type="button" aria-label="Увеличить">+</button></span>
+  </div>
+  <div class="drawbody" id="zScroll" style="background:#fff"><img id="zImg" alt="Лист каталога запчастей" style="display:block;width:100%;max-width:none"></div>
+  <div class="drawfoot"><button class="btn" id="zPrev" type="button">← Лист</button><button class="btn" id="zNext" type="button">Лист →</button></div>
+</div></dialog>
 
 <!-- операция -->
 <dialog id="dlgMove"><div class="dbody">
@@ -493,7 +526,7 @@ function handleCode(raw){const p=parseCode(raw),V=view();
     if(f.length===1)c=f[0].code;
     else if(f.length>1&&scanMode!=='count'){setTab('items');$('#q').value=String(raw).trim();renderItems();toast('Найдено позиций: '+f.length);return;}}
   if(!V.items[c]){const r=String(raw).trim();toast('«'+r+'» не найдено: ни в коде, ни в названии, ни в артикуле');
-    if(!/#[il]=/.test(r)&&scanMode!=='count'){setTab('scan');$('#notFoundT').textContent='«'+r+'» нет на складе. Если это новая запчасть — добавь её:';$('#notFoundAdd').textContent='＋ Добавить «'+r+'»';$('#notFoundAdd').dataset.name=r;$('#notFound').hidden=false;}
+    if(!/#[il]=/.test(r)&&scanMode!=='count'){setTab('scan');$('#notFoundT').textContent='«'+r+'» нет на складе. Если это новая запчасть — добавь её:';$('#notFoundAdd').textContent='＋ Добавить «'+r+'»';$('#notFoundAdd').dataset.name=r;const zk=ZC?zSearch(r).total:0;$('#notFoundKat').hidden=!zk;if(zk){$('#notFoundKat').textContent='📚 В каталоге: '+zk;$('#notFoundKat').dataset.q=r;}$('#notFound').hidden=false;}
     return;}
   $('#notFound').hidden=true;
   if(scanMode==='count'&&activeInv()){openCount(c);return;}
@@ -552,6 +585,7 @@ function openItem(code){const V=view(),it=V.items[code];if(!it){toast('Пози�
   ${it.note?`<p style="margin:0">${esc(it.note)}</p>`:''}
   <div class="grid2"><button class="btn main big" type="button" data-op="in">Приход</button><button class="btn main big" type="button" data-op="out">Расход</button><button class="btn" type="button" data-op="move">Переместить</button><button class="btn" type="button" id="it-edit">Изменить</button></div>
   <div><div class="muted" style="font-size:14px;margin-bottom:4px">Выдать на станок</div><div class="grid2">${MACHINES.map(m=>`<button class="btn main big" type="button" data-mach="${esc(m)}">${esc(m)}</button>`).join('')}</div></div>
+  ${(()=>{const z=zForItem(it);return z?`<button class="btn" type="button" data-zitsec="${z.si}:${z.pi}">📖 Чертёж в каталоге${z.n>1?' ('+z.n+')':''}</button>`:'';})()}
   <div class="grid2"><button class="btn" type="button" id="it-print">Напечатать этикетку</button><button class="btn danger" type="button" id="it-del">🗑 Удалить позицию</button></div>
   ${mv.length?`<div><h3 style="font-size:18px;margin:4px 0">Движения</h3>${mv.map(undoRow).join('')}</div>`:''}`;
   if(!$('#dlgItem').open)$('#dlgItem').showModal();}
@@ -569,6 +603,7 @@ function undoMove(id,btn){const m=view().moves[id];if(!m||undoneIds().has(id))re
 $('#itemBody').addEventListener('click',ev=>{const t=ev.target.closest('button');if(!t)return;
   if(t.dataset.undo){undoMove(t.dataset.undo,t);return;}
   if(t.id==='it-close'){$('#dlgItem').close();return;}
+  if(t.dataset.zitsec){const [si,pi]=t.dataset.zitsec.split(':').map(Number);$('#dlgItem').close();zSec=si;zHl=pi;zView='sec';setTab('kat');return;}
   if(t.dataset.op){openMove(t.dataset.op);return;}
   if(t.dataset.mach){openMove('out',t.dataset.mach);return;}
   if(t.id==='it-edit'){openEdit(cur);return;}
@@ -856,8 +891,132 @@ window.addEventListener('online',renderStatus);window.addEventListener('offline'
 
 /* ---------- вкладки ---------- */
 function setTab(t){S.tab=t;save();$$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+t));$$('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));renderActive();window.scrollTo(0,0);}
-function renderActive(){const t=S.tab;if(t==='scan')renderScan();if(t==='items')renderItems();if(t==='inv')renderInv();if(t==='log')renderLog();}
+function renderActive(){const t=S.tab;if(t==='scan')renderScan();if(t==='items')renderItems();if(t==='inv')renderInv();if(t==='log')renderLog();if(t==='kat')renderZch();}
 $$('nav.tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+/* ---------- каталог запчастей JK830-2 (как в журнале машиниста; данные в памяти телефона, на сайте их нет) ---------- */
+const ZDB=(()=>{let op=null;
+  const open=()=>op||(op=new Promise((res,rej)=>{const r=indexedDB.open('jk830-zch',1);
+    r.onupgradeneeded=()=>{r.result.createObjectStore('kv');r.result.createObjectStore('img');};r.onsuccess=()=>res(r.result);r.onerror=()=>{op=null;rej(r.error);};}));
+  const run=(store,mode,fn)=>open().then(db=>new Promise((res,rej)=>{const t=db.transaction(store,mode);const q=fn(t.objectStore(store));
+    t.oncomplete=()=>res(q&&q.result);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error);}));
+  return{get:(s,k)=>run(s,'readonly',st=>st.get(k)),
+    putMany:(s,obj)=>open().then(db=>new Promise((res,rej)=>{const t=db.transaction(s,'readwrite');const st=t.objectStore(s);Object.entries(obj).forEach(([k,v])=>st.put(v,k));t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error);})),
+    clear:s=>run(s,'readwrite',st=>st.clear())};})();
+let ZC=null,ZC_IDX=null,zQuery='',zView='search',zSec=-1,zHl=-1,zBusy=false;
+if(!Array.isArray(S.zchCart))S.zchCart=[];
+const ruNorm=s=>String(s||'').toLowerCase().replace(/ё/g,'е');
+const ZENDS=['иями','ями','ами','ого','его','ому','ему','ыми','ими','ией','иях','ах','ях','ов','ев','ей','ой','ий','ый','ая','яя','ое','ее','ую','юю','ом','ем','ам','ям','ия','ие','ии','ью','а','я','о','е','и','ы','у','ю','ь'];
+function stem(w){w=ruNorm(w);if(/^[0-9a-z.\-×x/]+$/.test(w))return w;for(const e of ZENDS){if(w.length-e.length>=4&&w.endsWith(e))return w.slice(0,-e.length);}return w;}
+const WORD=/[0-9a-zа-яё][0-9a-zа-яё.\-×/]*/gi;
+function hl(text,terms){let h=esc(text);terms.forEach(t=>{if(t.length<2)return;const re=new RegExp('(^|[^0-9a-zа-яё])('+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'[0-9a-zа-яё]*)','gi');h=h.replace(re,'$1<mark>$2</mark>');});return h;}
+// номер детали: без пробелов и тире, русские буквы-двойники → латиница
+const LAT=s=>String(s||'').replace(/[АВСЕНКМОРТХУавсеокрстху]/g,c=>({А:'A',В:'B',С:'C',Е:'E',Н:'H',К:'K',М:'M',О:'O',Р:'P',Т:'T',Х:'X',У:'Y',а:'A',в:'B',с:'C',е:'E',о:'O',к:'K',р:'P',т:'T',х:'X',у:'Y'})[c]||c);
+const pnNorm=s=>LAT(s).toUpperCase().replace(/[\s\-—–.,_/]/g,'');
+function zBuild(){ZC_IDX=[];ZC.secs.forEach((s,si)=>{s.k=si;s.p.forEach((p,pi)=>{
+  ZC_IDX.push({si,pi,pn:pnNorm(p[1]),words:(ruNorm(p[2]+' '+p[4]).match(WORD)||[]),sec:(ruNorm(s.t).match(WORD)||[])});});});}
+async function zLoad(){if(ZC)return ZC;try{const d=await ZDB.get('kv','pkg');if(d){ZC=d;zBuild();}}catch(e){}return ZC;}
+function zSearch(q){q=String(q||'').trim();if(!q||!ZC_IDX)return{parts:[],secs:[],total:0};
+  const n=pnNorm(q),digits=/\d/.test(q),terms=[...new Set((ruNorm(q).match(WORD)||[]).filter(w=>w.length>1).map(stem))];
+  const out=[];
+  ZC_IDX.forEach(x=>{let sc=0;
+    if(digits&&n.length>=3&&x.pn.includes(n))sc=x.pn===n?100:x.pn.startsWith(n)?80:60;
+    else if(terms.length&&terms.every(t=>x.words.some(w=>w.startsWith(t))))sc=20+(terms.every(t=>x.sec.some(w=>w.startsWith(t)))?5:0);
+    if(sc)out.push({x,sc});});
+  out.sort((a,b)=>b.sc-a.sc||a.x.si-b.x.si||a.x.pi-b.x.pi);
+  const secs=terms.length?ZC.secs.filter(s=>terms.every(t=>((ruNorm(s.t).match(WORD)||[]).some(w=>w.startsWith(t))))||(digits&&n.length>=4&&pnNorm(s.c).includes(n))):[];
+  return{parts:out.slice(0,80),total:out.length,secs:secs.slice(0,8)};}
+/* связь со складом: номер из артикула позиции = номер детали в каталоге */
+const artKeys=it=>{const k=new Set();
+  const src=[it.art,String(it.note||'').replace(/^.*?Кат\.?\s*№\s*/i,'')].concat((String(it.name||'').match(/\(([^)]+)\)/g)||[]).map(x=>x.slice(1,-1)));
+  src.forEach(a=>{a=String(a||'');const w=pnNorm(a);if(w.length>=5)k.add(w);a.split(/[;,/]/).forEach(x=>{x=pnNorm(x);if(x.length>=6)k.add(x);});});return k;};
+function zStockMap(){const m=new Map();Object.values(view().items).forEach(it=>artKeys(it).forEach(k=>{if(!m.has(k))m.set(k,it.code);}));return m;}
+function zForItem(it){if(!ZC_IDX)return null;const ks=artKeys(it);if(!ks.size)return null;const f=ZC_IDX.filter(x=>x.pn&&ks.has(x.pn));return f.length?{si:f[0].si,pi:f[0].pi,n:f.length}:null;}
+const zKey=p=>pnNorm(p[1])||ruNorm(p[2]);
+function zPartRow(s,p,terms,showSec,sm,hlRow){const inCart=S.zchCart.find(c=>c.key===zKey(p)&&c.sec===s.c);const code=p[1]&&sm.get(pnNorm(p[1]));const it=code&&view().items[code];
+  return`<div class="rec${hlRow?' hl':''}">
+    <span class="no">${esc(p[0]||'·')}</span>
+    <span><b>${terms?hl(p[2],terms):esc(p[2])}</b>${p[3]?` <span class="muted">× ${esc(p[3])}</span>`:''}
+      <div style="font:600 15px/1.3 'Roboto Mono',ui-monospace,monospace;letter-spacing:.2px;user-select:all">${esc(p[1]||'—')}</div>
+      ${p[4]?`<div class="t">${esc(p[4])}</div>`:''}
+      ${it?`<button type="button" data-zitem="${esc(code)}" style="all:unset;cursor:pointer;font-size:14px;font-weight:600;color:var(--vis)">📦 На складе: ${fq(stockOf(code))} ${esc(unitOf(it))}${it.loc?' · '+esc(it.loc):''}</button>`:''}
+      ${showSec?`<button type="button" class="t" data-zsec="${s.k}" style="all:unset;cursor:pointer;color:var(--muted);font-size:13px;text-decoration:underline;display:block">${esc(s.c?s.c+' · ':'')}${esc(s.t)}</button>`:''}</span>
+    <span class="row" style="gap:6px;flex-wrap:nowrap">${showSec?`<button class="btn" type="button" data-zpg="${s.k}" aria-label="Чертёж узла" style="min-height:42px;padding:4px 10px">Чертёж</button>`:''}
+      <button class="btn${inCart?' main':''}" type="button" data-zadd="${s.k}:${s.p.indexOf(p)}" aria-label="В заявку" style="min-height:42px;padding:4px 12px;font-size:20px">${inCart?'✓':'+'}</button></span></div>`;}
+async function renderZch(){const box=$('#katBody');await zLoad();
+  const nav=ZC?`<div class="chips">${[['search','Поиск'],['secs','Узлы'],['cart',`Заявка${S.zchCart.length?' ('+S.zchCart.length+')':''}`]].map(([k,l])=>`<button type="button" data-zv="${k}" aria-pressed="${zView===k||(k==='secs'&&zView==='sec')}">${l}</button>`).join('')}</div>`:'';
+  if(!ZC){box.innerHTML=`<div class="card"><h2>Каталог запчастей JK830-2</h2>
+    <p style="margin:0 0 10px">Все узлы машины с чертежами: номер детали, название, количество. Поиск по номеру или названию без интернета. Видно, есть ли деталь на складе и в какой ячейке. Нужные детали собираются в заявку.</p>
+    <p class="hint">Каталог — документ производителя, поэтому на сайте его нет. Загрузи один раз файл <b>katalog-zch-jk830.json</b> (около 9,5 МБ), тот же, что для журнала машиниста.</p>
+    <label class="btn main big" style="display:flex;align-items:center;justify-content:center;cursor:pointer">Загрузить каталог из файла<input type="file" id="zFile" accept=".json,application/json" hidden></label>
+    <p class="hint" id="zMsg" style="margin:10px 0 0"></p></div>`;$('#zFile').onchange=zImport;return;}
+  const sm=zStockMap();let html=nav;
+  if(zView==='search'){const r=zSearch(zQuery);const terms=[...new Set((ruNorm(zQuery).match(WORD)||[]).filter(w=>w.length>1).map(stem))];
+    html+=`<div class="card" style="padding:10px"><div class="row" style="flex-wrap:nowrap"><input id="zQ" type="search" placeholder="Номер детали или название: 8806441, фильтр…" value="${esc(zQuery)}" style="flex:1;min-width:0" aria-label="Поиск запчасти"><button class="btn main" id="zGo" type="button">Найти</button></div>
+      <p class="hint" style="margin:8px 0 0">Номер можно вводить частью и без тире: «830-0113» = «8300113».</p></div>`;
+    if(zQuery){
+      if(r.secs.length)html+=`<div class="card"><h2>Узлы</h2>${r.secs.map(s=>`<button class="splink" type="button" data-zsec="${s.k}"><b>${hl(s.t,terms)}</b> <span class="muted">${esc(s.c)}</span></button>`).join('')}</div>`;
+      html+=r.parts.length?`<div class="card"><h2>Детали: ${r.total}${r.total>r.parts.length?' (показаны первые '+r.parts.length+')':''}</h2>${r.parts.map(({x})=>zPartRow(ZC.secs[x.si],ZC.secs[x.si].p[x.pi],terms,true,sm)).join('')}</div>`
+        :`<div class="card muted">Ничего не нашлось. Попробуй часть номера (например «8806») или другое слово: «фильтр», «шланг», «уплотн», «подшипник».</div>`;}
+    else html+=`<div class="card muted">В каталоге ${ZC.secs.length} узлов и ${ZC_IDX.length} позиций, из них на складе есть ${ZC_IDX.filter(x=>x.pn&&sm.has(x.pn)).length}. Начни с поиска или открой «Узлы».</div>`;}
+  else if(zView==='secs'){html+=`<div class="card"><h2>Узлы машины</h2>${ZC.secs.map(s=>`<button class="splink" type="button" data-zsec="${s.k}"><b>${esc(s.t)}</b> <span class="muted">${esc(s.c)} · ${s.p.length} поз.</span></button>`).join('')}</div>`;}
+  else if(zView==='sec'&&ZC.secs[zSec]){const s=ZC.secs[zSec];
+    html+=`<div class="card"><h2 style="margin-bottom:2px">${esc(s.t)}</h2><div class="muted" style="margin-bottom:10px">${esc(s.c)} · листы каталога ${s.pg.join(', ')}</div>
+      <button class="btn main" type="button" data-zpg="${s.k}" style="width:100%">Открыть чертёж</button>
+      <p class="hint" style="margin:8px 0 0">Номер позиции в таблице = цифра в кружке на чертеже.</p>
+      ${s.p.map((p,pi)=>zPartRow(s,p,null,false,sm,pi===zHl)).join('')}</div>`;}
+  else if(zView==='cart'){const c=S.zchCart;
+    html+=c.length?`<div class="card"><h2>Заявка на запчасти</h2>${c.map((it,k)=>`<div class="rec" style="grid-template-columns:1fr auto">
+        <span><b>${esc(it.nm)}</b><div style="font:600 15px/1.3 'Roboto Mono',ui-monospace,monospace">${esc(it.pn||'—')}</div><div class="t">${esc(it.secT)}${it.pos?' · поз. '+esc(it.pos):''}</div></span>
+        <span class="row" style="gap:4px;flex-wrap:nowrap"><button class="btn" type="button" data-zq="${k}:-1" aria-label="Меньше" style="min-height:42px;padding:4px 12px">−</button><b style="min-width:30px;text-align:center;font-size:20px">${it.q}</b><button class="btn" type="button" data-zq="${k}:1" aria-label="Больше" style="min-height:42px;padding:4px 12px">+</button></span></div>`).join('')}
+      <label class="f" style="margin-top:10px">Комментарий<input id="zNote" type="text" value="${esc(S.zchNote||'')}" placeholder="Срочно, причина, куда везти"></label>
+      <div class="row" style="margin-top:10px"><button class="btn main" type="button" id="zSend">Отправить</button><button class="btn" type="button" id="zCopy">Копировать</button><button class="btn ghost" type="button" id="zClear" style="margin-left:auto">Очистить</button></div></div>`
+      :`<div class="card muted">Заявка пуста. Найди деталь и нажми «+».</div>`;}
+  else{zView='search';renderZch();return;}
+  box.innerHTML=html;zWire(box);
+  if(zView==='sec'&&zHl>=0){const r=box.querySelector('.rec.hl');if(r)r.scrollIntoView({block:'center'});}
+  if(zView==='search'){const q=$('#zQ');q.addEventListener('keydown',e=>{if(e.key==='Enter')$('#zGo').click();});$('#zGo').onclick=()=>{zQuery=q.value.trim();renderZch();};}
+  if(zView==='cart'&&S.zchCart.length){$('#zNote').oninput=e=>{S.zchNote=e.target.value;save();};
+    $('#zSend').onclick=async()=>{const t=zCartText();try{if(navigator.share){await navigator.share({title:'Заявка на запчасти',text:t});return;}}catch(e){if(e&&e.name==='AbortError')return;}zCopyText(t);};
+    $('#zCopy').onclick=()=>zCopyText(zCartText());
+    $('#zClear').onclick=()=>{if(!confirm('Очистить заявку?'))return;S.zchCart=[];S.zchNote='';save();renderZch();};}}
+function zWire(box){
+  box.querySelectorAll('[data-zv]').forEach(b=>b.onclick=()=>{zView=b.dataset.zv;zHl=-1;renderZch();window.scrollTo(0,0);});
+  box.querySelectorAll('[data-zsec]').forEach(b=>b.onclick=()=>{zSec=+b.dataset.zsec;zHl=-1;zView='sec';renderZch();window.scrollTo(0,0);});
+  box.querySelectorAll('[data-zpg]').forEach(b=>b.onclick=()=>zOpen(+b.dataset.zpg,0));
+  box.querySelectorAll('[data-zitem]').forEach(b=>b.onclick=()=>openItem(b.dataset.zitem));
+  box.querySelectorAll('[data-zadd]').forEach(b=>b.onclick=()=>{const [si,pi]=b.dataset.zadd.split(':').map(Number);const s=ZC.secs[si],p=s.p[pi];
+    const k=S.zchCart.findIndex(c=>c.key===zKey(p)&&c.sec===s.c);
+    if(k>=0){S.zchCart.splice(k,1);toast('Убрано из заявки');}
+    else{S.zchCart.push({key:zKey(p),pn:p[1],nm:p[2],q:1,pos:p[0],sec:s.c,secT:(s.c?s.c+' ':'')+s.t,at:Date.now()});toast('Добавлено в заявку: '+p[2]);}
+    save();renderZch();});
+  box.querySelectorAll('[data-zq]').forEach(b=>b.onclick=()=>{const [k,d]=b.dataset.zq.split(':').map(Number);const it=S.zchCart[k];if(!it)return;it.q=Math.max(1,it.q+d);save();renderZch();});}
+function zCartText(){const d=today().split('-').reverse().join('.');
+  const head=['Заявка на запчасти JK830-2',[d,S.user||''].filter(Boolean).join(', ')];
+  return head.concat(S.zchCart.map((it,k)=>`${k+1}. ${it.nm} — ${it.pn||'без номера'} — ${it.q} шт. (${it.secT}${it.pos?', поз. '+it.pos:''})`),S.zchNote?['Комментарий: '+S.zchNote]:[]).join('\n');}
+async function zCopyText(t){try{await navigator.clipboard.writeText(t);toast('Заявка скопирована — вставь в мессенджер');}catch(e){toast('Не удалось скопировать');}}
+let zCur=null,zUrl='',zZoom=1;
+async function zOpen(si,k){const s=ZC.secs[si];if(!s)return;k=Math.max(0,Math.min(s.pg.length-1,k));zCur={si,k};const pg=s.pg[k];
+  $('#zTitle').textContent=s.t;$('#zSub').textContent=s.c;$('#zPg').textContent=`Лист ${k+1} из ${s.pg.length} · стр. ${pg} каталога`;
+  $('#zPrev').disabled=k===0;$('#zNext').disabled=k===s.pg.length-1;zZoom=1;$('#zImg').style.width='100%';
+  if(!$('#dlgZch').open)$('#dlgZch').showModal();$('#zScroll').scrollTop=0;
+  if(zUrl){URL.revokeObjectURL(zUrl);zUrl='';}$('#zImg').removeAttribute('src');
+  try{const b=await ZDB.get('img',String(pg));if(b&&zCur.si===si&&zCur.k===k){zUrl=URL.createObjectURL(b);$('#zImg').src=zUrl;}}catch(e){}}
+$('#zClose').onclick=()=>$('#dlgZch').close();
+$('#zPrev').onclick=()=>zOpen(zCur.si,zCur.k-1);$('#zNext').onclick=()=>zOpen(zCur.si,zCur.k+1);
+$('#zZin').onclick=()=>{zZoom=Math.min(5,zZoom*1.5);$('#zImg').style.width=(zZoom*100)+'%';};
+$('#zZout').onclick=()=>{zZoom=Math.max(1,zZoom/1.5);$('#zImg').style.width=(zZoom*100)+'%';};
+$('#notFoundKat').onclick=()=>{zQuery=$('#notFoundKat').dataset.q||'';zView='search';$('#notFound').hidden=true;setTab('kat');};
+async function zImport(ev){const f=ev.target.files&&ev.target.files[0];ev.target.value='';if(!f||zBusy)return;zBusy=true;const msg=$('#zMsg');
+  try{msg.textContent='Читаю файл…';const pkg=JSON.parse(await f.text());
+    if(!pkg||pkg.kind!=='jk830-zch'||!Array.isArray(pkg.secs))throw new Error('Это не файл каталога запчастей JK830-2');
+    const img=pkg.img||{};delete pkg.img;await ZDB.clear('img');const keys=Object.keys(img);
+    for(let k=0;k<keys.length;k+=20){const part={};keys.slice(k,k+20).forEach(x=>{const bin=atob(img[x]),arr=new Uint8Array(bin.length);for(let j=0;j<bin.length;j++)arr[j]=bin.charCodeAt(j);part[x]=new Blob([arr],{type:'image/webp'});});
+      await ZDB.putMany('img',part);msg.textContent=`Сохраняю листы: ${Math.min(k+20,keys.length)} из ${keys.length}`;}
+    await ZDB.putMany('kv',{pkg});ZC=pkg;zBuild();if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+    toast('Каталог запчастей загружен и работает без интернета');zView='search';renderZch();}
+  catch(e){msg.textContent='Не удалось загрузить: '+(e&&e.message?e.message:'файл повреждён или не хватает памяти');}
+  finally{zBusy=false;}}
+zLoad();
 renderWho();renderStatus();setTab(S.tab||'scan');readHash();autoSync(2000);
 
 /* ---------- установка и обновление ---------- */
