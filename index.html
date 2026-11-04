@@ -902,7 +902,7 @@ const ZDB=(()=>{let op=null;
   return{get:(s,k)=>run(s,'readonly',st=>st.get(k)),
     putMany:(s,obj)=>open().then(db=>new Promise((res,rej)=>{const t=db.transaction(s,'readwrite');const st=t.objectStore(s);Object.entries(obj).forEach(([k,v])=>st.put(v,k));t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error);})),
     clear:s=>run(s,'readwrite',st=>st.clear())};})();
-let ZC=null,ZC_IDX=null,zQuery='',zView='search',zSec=-1,zHl=-1,zBusy=false;
+let zSecQ='';let ZC=null,ZC_IDX=null,zQuery='',zView='search',zSec=-1,zHl=-1,zBusy=false;
 if(!Array.isArray(S.zchCart))S.zchCart=[];
 const ruNorm=s=>String(s||'').toLowerCase().replace(/ё/g,'е');
 const ZENDS=['иями','ями','ами','ого','его','ому','ему','ыми','ими','ией','иях','ах','ях','ов','ев','ей','ой','ий','ый','ая','яя','ое','ее','ую','юю','ом','ем','ам','ям','ия','ие','ии','ью','а','я','о','е','и','ы','у','ю','ь'];
@@ -958,7 +958,10 @@ async function renderZch(){const box=$('#katBody');await zLoad();
       html+=r.parts.length?`<div class="card"><h2>Детали: ${r.total}${r.total>r.parts.length?' (показаны первые '+r.parts.length+')':''}</h2>${r.parts.map(({x})=>zPartRow(ZC.secs[x.si],ZC.secs[x.si].p[x.pi],terms,true,sm)).join('')}</div>`
         :`<div class="card muted">Ничего не нашлось. Попробуй часть номера (например «8806») или другое слово: «фильтр», «шланг», «уплотн», «подшипник».</div>`;}
     else html+=`<div class="card muted">В каталоге ${ZC.secs.length} узлов и ${ZC_IDX.length} позиций, из них на складе есть ${ZC_IDX.filter(x=>x.pn&&sm.has(x.pn)).length}. Начни с поиска или открой «Узлы».</div>`;}
-  else if(zView==='secs'){html+=`<div class="card"><h2>Узлы машины</h2>${ZC.secs.map(s=>`<button class="splink" type="button" data-zsec="${s.k}"><b>${esc(s.t)}</b> <span class="muted">${esc(s.c)} · ${s.p.length} поз.</span></button>`).join('')}</div>`;}
+  else if(zView==='secs'){html+=`<div class="card"><h2>Узлы машины</h2>
+      <input id="zSecQ" type="search" placeholder="Найти узел: насос, гусеница, 07 20…" value="${esc(zSecQ)}" style="width:100%;box-sizing:border-box;margin-bottom:6px" aria-label="Поиск узла">
+      <div id="zSecList">${ZC.secs.map(s=>`<button class="splink" type="button" data-zsec="${s.k}" data-ztxt="${esc(ruNorm(s.t+' '+s.c+' '+s.p.map(p=>p[2]).join(' ')))}" data-zcode="${esc(pnNorm(s.c))}"><b>${esc(s.t)}</b> <span class="muted">${esc(s.c)} · ${s.p.length} поз.</span></button>`).join('')}</div>
+      <p class="muted" id="zSecNone" hidden style="margin:8px 0 0">Узел не найден. Попробуй другое слово или вкладку «Поиск».</p></div>`;}
   else if(zView==='sec'&&ZC.secs[zSec]){const s=ZC.secs[zSec];
     html+=`<div class="card"><h2 style="margin-bottom:2px">${esc(s.t)}</h2><div class="muted" style="margin-bottom:10px">${esc(s.c)} · листы каталога ${s.pg.join(', ')}</div>
       <button class="btn main" type="button" data-zpg="${s.k}" style="width:100%">Открыть чертёж</button>
@@ -974,6 +977,10 @@ async function renderZch(){const box=$('#katBody');await zLoad();
   else{zView='search';renderZch();return;}
   box.innerHTML=html;zWire(box);
   if(zView==='sec'&&zHl>=0){const r=box.querySelector('.rec.hl');if(r)r.scrollIntoView({block:'center'});}
+  if(zView==='secs'){const q=$('#zSecQ');const f=()=>{zSecQ=q.value;const v=q.value.trim(),terms=[...new Set((ruNorm(v).match(WORD)||[]).map(stem))],n=pnNorm(v);let shown=0;
+      box.querySelectorAll('#zSecList .splink').forEach(b=>{const t=b.dataset.ztxt,w=t.match(WORD)||[];
+        const ok=!v||(n.length>=2&&/\d/.test(v)&&b.dataset.zcode.includes(n))||(terms.length&&terms.every(x=>w.some(y=>y.startsWith(x))));b.hidden=!ok;if(ok)shown++;});
+      $('#zSecNone').hidden=shown>0;};q.oninput=f;f();}
   if(zView==='search'){const q=$('#zQ');q.addEventListener('keydown',e=>{if(e.key==='Enter')$('#zGo').click();});$('#zGo').onclick=()=>{zQuery=q.value.trim();renderZch();};}
   if(zView==='cart'&&S.zchCart.length){$('#zNote').oninput=e=>{S.zchNote=e.target.value;save();};
     $('#zSend').onclick=async()=>{const t=zCartText();try{if(navigator.share){await navigator.share({title:'Заявка на запчасти',text:t});return;}}catch(e){if(e&&e.name==='AbortError')return;}zCopyText(t);};
