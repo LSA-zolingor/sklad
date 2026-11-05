@@ -587,7 +587,7 @@ $('#who').addEventListener('click',()=>openLogin());$('#who').addEventListener('
 let syncing=false;
 const pending=()=>Object.keys(S.dItems).length+Object.keys(S.dMoves).length+Object.keys(S.dInvs).length+Object.keys(S.dReqs).length;
 function renderStatus(){const b=$('#syncBtn'),n=pending();b.classList.toggle('pending',n>0);b.disabled=syncing;
-  b.textContent=syncing?'Отправка…':n?(navigator.onLine?`Отправить (${n})`:`Не отправлено (${n})`):(S.cfg.url?'Всё отправлено':'Таблица');}
+  b.textContent=syncing?(syncProg||'Отправка…'):n?(navigator.onLine?`Отправить (${n})`:`Не отправлено (${n})`):(S.cfg.url?'Всё отправлено':'Таблица');}
 
 /* ---------- вкладка «Поиск» ---------- */
 function renderScan(){const V=view(),its=Object.values(V.items).filter(inWh);
@@ -1073,6 +1073,14 @@ $('#rp-csv').onclick=()=>{const d=repData();if(!d.mv.length){toast('За пер�
 /* ---------- синхронизация ---------- */
 function renderConn(){const u=$('#cfg-url'),k=$('#cfg-key');if(document.activeElement!==u)u.value=S.cfg.url||'';if(document.activeElement!==k)k.value=S.cfg.key||'';
   $('#connState').textContent=!S.cfg.url?'Не подключено. Все записи хранятся на этом телефоне.':(S.lastSync?`Подключено. Последний обмен ${tm(S.lastSync)}.`:'Адрес указан. Нажми «Проверить и обновить».');}
+/* отправка частями (05.11.2026): сотни записей одним запросом таблица обрабатывает дольше минуты и телефон обрывал ожидание.
+   Теперь по SYNC_PART записей, каждая часть снимается с телефона сразу после ответа; листы пересобираются после последней части. */
+const SYNC_PART=100;let syncProg='';
+async function syncPost(docs,last){const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),180000);
+  try{const r=await fetch(S.cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:S.cfg.key||'',device:S.deviceId,docs,partial:!last}),signal:ctl.signal,redirect:'follow'});
+    let j;try{j=JSON.parse(await r.text());}catch(e){throw{code:'bad_response'};}
+    if(!j.ok)throw{code:j.error||'server',msg:j.message};return j;}
+  finally{clearTimeout(to);}}
 async function sync(auto){auto=auto===true;if(syncing){if(auto)autoSync(5000);return;}
   if(auto&&(!S.cfg.url||!navigator.onLine))return;
   if(!S.cfg.url){toast('Подключи Google Таблицу: вкладка «Журнал»');setTab('log');return;}
@@ -1083,24 +1091,27 @@ async function sync(auto){auto=auto===true;if(syncing){if(auto)autoSync(5000);re
   sent.m.forEach(id=>{if(S.moves[id])docs.push({c:'moves',id,data:S.moves[id]});});
   Object.keys(sent.v).forEach(id=>{if(S.invs[id])docs.push({c:'invs',id,data:S.invs[id]});});
   sent.r.forEach(id=>{if(S.reqs[id])docs.push({c:'reqs',id,data:S.reqs[id]});});
-  const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),60000);
-  try{const r=await fetch(S.cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:S.cfg.key||'',device:S.deviceId,docs}),signal:ctl.signal,redirect:'follow'});
-    let j;try{j=JSON.parse(await r.text());}catch(e){throw{code:'bad_response'};}
-    if(!j.ok)throw{code:j.error||'server',msg:j.message};
-    const d=j.data||{};shared={items:d.items||[],moves:d.moves||[],invs:d.invs||[],at:j.at||new Date().toISOString()};
-    try{localStorage.setItem(SH,JSON.stringify(shared));}catch(e){toast('Общий журнал не поместился в память телефона');}
-    Object.keys(sent.i).forEach(c=>{if(S.dItems[c]===sent.i[c]){delete S.dItems[c];delete S.items[c];}});
-    sent.m.forEach(id=>{delete S.dMoves[id];delete S.moves[id];});
-    Object.keys(sent.v).forEach(id=>{if(S.dInvs[id]===sent.v[id]){delete S.dInvs[id];if(id!==S.invActive)delete S.invs[id];}});
+  try{let j=null,d={},reqsOk=false;const parts=[];for(let i=0;i<docs.length;i+=SYNC_PART)parts.push(docs.slice(i,i+SYNC_PART));if(!parts.length)parts.push([]);
+    for(let k=0;k<parts.length;k++){const part=parts[k];
+      if(parts.length>1){syncProg=`Отправка ${k*SYNC_PART+part.length}/${docs.length}…`;renderStatus();}
+      j=await syncPost(part,k===parts.length-1);d=j.data||{};if(Array.isArray(d.reqs))reqsOk=true;
+      /* эта часть принята таблицей — снимаем её с телефона */
+      part.forEach(x=>{if(x.c==='items'){if(S.dItems[x.id]===sent.i[x.id]){delete S.dItems[x.id];delete S.items[x.id];}}
+        else if(x.c==='moves'){delete S.dMoves[x.id];delete S.moves[x.id];}
+        else if(x.c==='invs'){if(S.dInvs[x.id]===sent.v[x.id]){delete S.dInvs[x.id];if(x.id!==S.invActive)delete S.invs[x.id];}}
+        else if(x.c==='reqs'&&Array.isArray(d.reqs)){delete S.dReqs[x.id];delete S.reqs[x.id];}});
+      /* общий журнал из ответа — сразу, чтобы снятые с телефона записи не пропали из вида, если следующая часть не уйдёт */
+      shared={items:d.items||[],moves:d.moves||[],invs:d.invs||[],at:j.at||new Date().toISOString()};
+      try{localStorage.setItem(SH,JSON.stringify(shared));}catch(e){if(k===parts.length-1)toast('Общий журнал не поместился в память телефона');}
+      save();}
     /* заявки снимаем с телефона, только если скрипт таблицы их знает (новый скрипт возвращает data.reqs);
        старый скрипт заявки молча пропускает — тогда держим их и напоминаем обновить скрипт */
-    if(Array.isArray(d.reqs))sent.r.forEach(id=>{delete S.dReqs[id];delete S.reqs[id];});
-    else if(sent.r.length&&!auto)setTimeout(()=>toast('Заявки ждут: обнови скрипт таблицы, чтобы появился лист «Заявки»'),3300);
+    if(!reqsOk&&sent.r.length&&!auto)setTimeout(()=>toast('Заявки ждут: обнови скрипт таблицы, чтобы появился лист «Заявки»'),3300);
     S.lastSync=new Date().toISOString();dirty();renderActive();if(!auto)toast(docs.length?'Отправлено в таблицу':'Данные обновлены');}
   catch(e){const c=(e&&e.code)||(e&&e.name);
     if(auto&&!['bad_key','bad_response'].includes(c))return;
     toast(c==='bad_key'?'Неверный ключ доступа':c==='AbortError'?'Таблица долго не отвечает, попробуй ещё раз':c==='bad_response'?'Не тот адрес или скрипт развёрнут без доступа «Все»':c==='server'?'Ошибка таблицы: '+(e.msg||''):'Нет связи с таблицей. Записи сохранены на телефоне.');}
-  finally{clearTimeout(to);syncing=false;renderStatus();renderConn();}}
+  finally{syncProg='';syncing=false;renderStatus();renderConn();}}
 $('#syncBtn').onclick=sync;$('#cfg-test').onclick=sync;
 $('#cfg-url').addEventListener('input',e=>{S.cfg.url=e.target.value.trim();save();});
 $('#cfg-key').addEventListener('input',e=>{S.cfg.key=e.target.value.trim();save();});
