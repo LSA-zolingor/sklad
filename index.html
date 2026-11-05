@@ -271,8 +271,7 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
   <div class="frame"></div>
   <div class="msg" id="camMsg">Наведи камеру на QR-код этикетки</div>
   <div class="bar">
-    <div class="row"><input id="camCode" type="text" autocapitalize="characters" placeholder="Код вручную"><button class="btn main" id="camGo" type="button">ОК</button></div>
-    <button class="btn" id="camClose" type="button">Закрыть</button>
+    <button class="btn" id="camClose" type="button" autofocus>Закрыть</button>
   </div>
 </div></dialog>
 
@@ -569,7 +568,7 @@ function showLoc(loc){if(hasJz()){const w=/^JKSO-/i.test(loc)?'JKSO':'JKSZ';if(w
 
 /* ---------- камера ---------- */
 let stream=null,scanTimer=null,detector=null,scanMode='card',lastHit='';
-async function openScan(mode){scanMode=mode||'card';$('#camCode').value='';$('#dlgCam').showModal();
+async function openScan(mode){scanMode=mode||'card';$('#dlgCam').showModal();
   $('#camMsg').textContent=scanMode==='count'?'Инвентаризация: наведи на этикетку':'Наведи камеру на QR-код этикетки';
   try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});}
   catch(e){$('#camMsg').textContent='Нет доступа к камере. Разреши камеру для сайта или введи код вручную.';return;}
@@ -590,7 +589,6 @@ async function loopScan(){if(!stream)return;const v=$('#video');let val='';
 function closeScan(){clearTimeout(scanTimer);if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}if($('#dlgCam').open)$('#dlgCam').close();}
 $('#scanBtn').onclick=()=>openScan('card');
 $('#camClose').onclick=closeScan;$('#dlgCam').addEventListener('cancel',()=>closeScan());
-$('#camGo').onclick=()=>{const c=$('#camCode').value.trim();if(!c)return;closeScan();handleCode(c);};
 
 /* ---------- карточка ---------- */
 let cur=null;
