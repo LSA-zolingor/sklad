@@ -152,6 +152,20 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
 .lbl .lc{font:700 9pt "Roboto Condensed","Arial Narrow",Arial,sans-serif}
 .lbl.loc .cd{font-size:22pt}
 .sheet{display:grid;background:#fff}
+.rdoc{background:#fff;color:#000;font:10pt/1.3 Roboto,Arial,sans-serif;padding:4mm}
+.rdoc h1{font:700 15pt/1.2 Roboto,Arial,sans-serif;margin:0 0 1mm;color:#000}
+.rdoc .rsub{font-size:9.5pt;margin-bottom:4mm;color:#333}
+.rdoc h2{font:700 11.5pt/1.2 Roboto,Arial,sans-serif;margin:5mm 0 1.5mm;color:#000;border-bottom:.4mm solid #000;padding-bottom:1mm}
+.rdoc table{border-collapse:collapse;width:100%;font-size:9pt}
+.rdoc th,.rdoc td{border:.2mm solid #888;padding:1mm 1.4mm;text-align:left;vertical-align:top}
+.rdoc th{background:#eee;font-weight:700}
+.rdoc td.n{text-align:right;white-space:nowrap}
+.rdoc .rtot{margin:1.2mm 0 0;font-weight:700;font-size:9.5pt}
+.rdoc .rsig{display:grid;grid-template-columns:1fr 1fr;gap:10mm;margin-top:10mm;font-size:10pt}
+.rdoc .rsig div{border-top:.3mm solid #000;padding-top:1mm}
+.rdoc .rnote{font-size:8.5pt;color:#555;margin-top:3mm}
+#rp-prev{overflow:auto;max-height:46vh;border:1px solid var(--line);border-radius:10px;background:#fff}
+#rp-prev .rdoc{font-size:8.5pt;padding:3mm}
 @media print{
   body{background:#fff}
   header.top,main,nav.tabs,#toast,dialog,#updBar{display:none!important}
@@ -253,6 +267,11 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
       </div>
     </div>
     <div class="card">
+      <h2>Отчёт за смену</h2>
+      <p class="hint" style="margin:0 0 10px">Что пришло, что списано и выдано на станки за день или период. Печать, PDF, отправка в мессенджер, Excel.</p>
+      <button class="btn main" id="repOpen" type="button">Сформировать отчёт</button>
+    </div>
+    <div class="card">
       <h2>Выгрузка для Excel</h2>
       <div class="row"><button class="btn" id="csvStock" type="button">Остатки</button><button class="btn" id="csvMoves" type="button">Движения</button></div>
     </div>
@@ -304,6 +323,23 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
   <label class="f" id="mv-mhL">Моточасы станка (если знаешь)<input id="mv-mh" inputmode="decimal" placeholder="например 4520"></label>
   <label class="f">Примечание<input id="mv-note" type="text"></label>
   <div class="row" style="justify-content:flex-end"><button class="btn ghost" id="mv-cancel" type="button">Отмена</button><button class="btn main" id="mv-ok" type="button">Записать</button></div>
+</div></dialog>
+
+<!-- отчёт за смену -->
+<dialog id="dlgRep"><div class="dbody">
+  <div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h3 style="margin:0">Отчёт за смену</h3><button class="btn ghost" id="rp-close" type="button" aria-label="Закрыть">✕</button></div>
+  <div class="grid2">
+    <label class="f">Период<select id="rp-per"><option value="today">Сегодня</option><option value="yest">Вчера</option><option value="7">Последние 7 дней</option><option value="month">Этот месяц</option><option value="custom">Свои даты</option></select></label>
+    <label class="f">Сотрудник<select id="rp-who"></select></label>
+  </div>
+  <div class="grid2" id="rp-dates" hidden>
+    <label class="f">С<input id="rp-from" type="date"></label>
+    <label class="f">По<input id="rp-to" type="date"></label>
+  </div>
+  <label class="f" id="rp-whL">Склад<select id="rp-wh"><option value="">Оба склада</option><option value="JKSZ">Основной JKsz</option><option value="JKSO">Склад JKso</option></select></label>
+  <p class="hint" id="rp-sum" style="margin:0"></p>
+  <div id="rp-prev"></div>
+  <div class="row"><button class="btn main" id="rp-print" type="button">Печать / PDF</button><button class="btn" id="rp-share" type="button">Отправить</button><button class="btn" id="rp-csv" type="button">Excel</button></div>
 </div></dialog>
 
 <!-- расход списком -->
@@ -976,6 +1012,63 @@ $('#csvMoves').onclick=()=>{const V=view(),mv=Object.values(V.moves).sort((a,b)=
     return[tm(m.at),TYPES[m.type]||m.type,m.code,it.name||'',m.type==='move'?'':dec(m.type==='out'?-num(m.qty):num(m.qty)),unitOf(it),m.whom,m.from,m.to,m.note,m.mh||'',m.by];}))));};
 function invCSV(v){if(!v)return;const V=view();
   download(`inventarizaciya-${(v.closedAt||'').slice(0,10)}.csv`,csvJoin([['Код','Наименование','Адрес','Факт','Посчитал','Время']].concat(Object.entries(v.counts||{}).map(([c,x])=>{const it=V.items[c]||{};return[c,it.name||'',it.loc||'',dec(num(x.q)),x.by,tm(x.at)];}))));}
+
+/* ---------- отчёт за смену (05.11.2026) ----------
+   Движения за период по сотруднику и складу: приход, выдача на станки, прочий расход, перемещения, инвентаризация.
+   Отменённые записи и их отмены в отчёт не попадают. */
+const locDay=iso=>{const d=new Date(iso);return isNaN(d)?'':new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);};
+const ruDate=d=>d?d.split('-').reverse().join('.'):'';
+const hm=iso=>{try{return new Date(iso).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});}catch(e){return '';}};
+function repRange(){const t=today(),p=$('#rp-per').value,sh=n=>{const d=new Date(t+'T12:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
+  if(p==='yest')return[sh(-1),sh(-1)];if(p==='7')return[sh(-6),t];if(p==='month')return[t.slice(0,8)+'01',t];
+  if(p==='custom'){let a=$('#rp-from').value||t,b=$('#rp-to').value||a;if(a>b)[a,b]=[b,a];return[a,b];}return[t,t];}
+function repData(){const V=view(),[a,b]=repRange(),who=$('#rp-who').value,wh=$('#rp-wh').value;
+  const all=Object.values(V.moves),cancelled=new Set();all.forEach(m=>{if(m.undo){cancelled.add(m.undo);cancelled.add(m.id);}});
+  const mv=all.filter(m=>{const d=locDay(m.at);if(!d||d<a||d>b||cancelled.has(m.id))return false;if(who&&m.by!==who)return false;
+    if(wh&&hasJz()){const it=V.items[m.code];if(!it||whOf(it)!==wh)return false;}return true;}).sort((x,y)=>(x.at||'').localeCompare(y.at||''));
+  const mach=m=>MACHINES.find(x=>(m.whom||'').replace(/\s/g,'').toLowerCase()===x.replace(/\s/g,'').toLowerCase());
+  const secs=[['Приход',mv.filter(m=>m.type==='in'),'От кого']];
+  MACHINES.forEach(x=>secs.push(['Выдано: '+x,mv.filter(m=>m.type==='out'&&mach(m)===x),'Кому']));
+  secs.push(['Расход (прочий)',mv.filter(m=>m.type==='out'&&!mach(m)),'Кому, куда']);
+  secs.push(['Перемещения',mv.filter(m=>m.type==='move'),'Откуда → куда']);
+  secs.push(['Инвентаризация (корректировки)',mv.filter(m=>m.type==='adj'),'Инвентаризация']);
+  return{a,b,who,wh,mv,secs:secs.filter(x=>x[1].length),V};}
+function repTotal(list,V){const u={};list.forEach(m=>{const k=unitOf(V.items[m.code]);u[k]=(u[k]||0)+Math.abs(num(m.qty));});return Object.entries(u).map(([k,q])=>fq(q)+' '+k).join(', ');}
+function repTitle(d){const per=d.a===d.b?ruDate(d.a):ruDate(d.a)+' – '+ruDate(d.b);
+  const whn=hasJz()?(d.wh?WHS.find(x=>x[0]===d.wh)[1]:'оба склада'):'';
+  return{per,sub:['Сотрудник: '+(d.who||'все'),whn?'Склад: '+whn:'','Сформирован: '+new Date().toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+(S.user?' ('+S.user+')':'')].filter(Boolean).join(' · ')};}
+function repHTML(d){const t=repTitle(d),multi=d.a!==d.b,showBy=!d.who;
+  let h=`<div class="rdoc"><h1>Отчёт по складу за ${esc(t.per)}</h1><div class="rsub">${esc(t.sub)}</div>`;
+  if(!d.secs.length)h+='<p>За выбранный период движений нет.</p>';
+  d.secs.forEach(([name,list,col])=>{h+=`<h2>${esc(name)}</h2><table><tr><th>№</th><th>${multi?'Дата, время':'Время'}</th><th>Наименование</th><th>Код</th><th>Кол-во</th><th>${esc(col)}</th><th>Примечание</th>${showBy?'<th>Кто</th>':''}</tr>`+
+    list.map((m,i)=>{const it=d.V.items[m.code]||{};const q=m.type==='move'?'—':(m.type==='adj'&&num(m.qty)>0?'+':'')+fq(m.type==='adj'?num(m.qty):Math.abs(num(m.qty)))+' '+esc(unitOf(it));
+      const w=m.type==='move'?`${m.from||'—'} → ${m.to||'—'}`:m.type==='adj'?(m.whom||''):(m.whom||'');
+      return `<tr><td class="n">${i+1}</td><td>${multi?esc(tm(m.at)):esc(hm(m.at))}</td><td>${esc(it.name||m.code)}${it.loc?`<br><small>${esc(it.loc)}</small>`:''}</td><td>${esc(m.code)}</td><td class="n">${q}</td><td>${esc(w)}</td><td>${esc(m.note||'')}</td>${showBy?`<td>${esc(m.by||'')}</td>`:''}</tr>`;}).join('')+
+    `</table>${list[0].type==='move'?'':`<p class="rtot">Итого: ${list.length} поз.${list[0].type==='adj'?'':', '+esc(repTotal(list,d.V))}</p>`}`;});
+  h+=`<div class="rsig"><div>Сдал: ${esc(d.who||S.user||'')}</div><div>Принял:</div></div><p class="rnote">Отменённые записи и их отмены в отчёт не включены. Остатки и полная история — в Google Таблице, лист «Движения».</p></div>`;return h;}
+function repText(d){const t=repTitle(d);let x=`Отчёт по складу за ${t.per}\n${t.sub}\n`;
+  if(!d.secs.length)return x+'\nДвижений нет.';
+  d.secs.forEach(([name,list])=>{x+=`\n${name}:\n`+list.map((m,i)=>{const it=d.V.items[m.code]||{};
+    const q=m.type==='move'?`${m.from||'—'} → ${m.to||'—'}`:(m.type==='adj'&&num(m.qty)>0?'+':'')+fq(m.type==='adj'?num(m.qty):Math.abs(num(m.qty)))+' '+unitOf(it);
+    return `${i+1}. ${it.name||m.code} (${m.code}) — ${q}${m.type!=='move'&&!/^Выдано/.test(name)&&m.whom?', '+m.whom:''}${m.note?' · '+m.note:''}${!d.who&&m.by?' · '+m.by:''}`;}).join('\n')+'\n';});
+  return x;}
+function renderRep(){const d=repData();$('#rp-dates').hidden=$('#rp-per').value!=='custom';
+  $('#rp-sum').textContent=d.mv.length?`Записей: ${d.mv.length}. `+d.secs.map(s=>s[0]+' — '+s[1].length).join(', '):'За выбранный период движений нет.';
+  $('#rp-prev').innerHTML=repHTML(d);}
+function openRep(){const V=view(),people=[...new Set(Object.values(V.moves).map(m=>m.by).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru'));
+  if(S.user&&!people.includes(S.user))people.unshift(S.user);
+  $('#rp-who').innerHTML=(S.user?`<option value="${esc(S.user)}">Я: ${esc(S.user)}</option>`:'')+'<option value="">Все сотрудники</option>'+people.filter(p=>p!==S.user).map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
+  $('#rp-whL').hidden=!hasJz();if(hasJz())$('#rp-wh').value='';
+  if(!$('#rp-from').value){$('#rp-from').value=today();$('#rp-to').value=today();}
+  renderRep();$('#dlgRep').showModal();}
+['#rp-per','#rp-who','#rp-wh','#rp-from','#rp-to'].forEach(id=>$(id).addEventListener('change',renderRep));
+$('#repOpen').onclick=openRep;$('#rp-close').onclick=()=>$('#dlgRep').close();
+$('#rp-print').onclick=()=>{const d=repData();$('#pageStyle').textContent='@page{size:A4;margin:12mm}';$('#print').innerHTML=repHTML(d);$('#dlgRep').close();setTimeout(()=>window.print(),150);};
+$('#rp-share').onclick=async()=>{const t=repText(repData());try{if(navigator.share){await navigator.share({title:'Отчёт по складу',text:t});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+  try{await navigator.clipboard.writeText(t);toast('Отчёт скопирован — вставь в мессенджер');}catch(e){toast('Не удалось скопировать');}};
+$('#rp-csv').onclick=()=>{const d=repData();if(!d.mv.length){toast('За период движений нет');return;}
+  download(`otchet-${d.a}${d.a!==d.b?'_'+d.b:''}.csv`,csvJoin([['Раздел','Дата','Время','Код','Наименование','Ячейка','Кол-во','Ед.','Кому/от кого','Откуда','Куда','Примечание','Моточасы','Кто']].concat(
+    ...d.secs.map(([name,list])=>list.map(m=>{const it=d.V.items[m.code]||{};return[name,ruDate(locDay(m.at)),hm(m.at),m.code,it.name||'',it.loc||'',m.type==='move'?'':dec(m.type==='adj'?num(m.qty):Math.abs(num(m.qty))),unitOf(it),m.whom,m.from,m.to,m.note,m.mh||'',m.by];})))));};
 
 /* ---------- синхронизация ---------- */
 function renderConn(){const u=$('#cfg-url'),k=$('#cfg-key');if(document.activeElement!==u)u.value=S.cfg.url||'';if(document.activeElement!==k)k.value=S.cfg.key||'';
