@@ -1,6 +1,6 @@
 /* Склад — офлайн-кэш. При выпуске новой версии увеличь VERSION. */
-const VERSION = 'sklad-v26';
-const FILES = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
+const VERSION = 'sklad-v27';
+const FILES = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'lib/html2canvas.min.js', 'lib/jspdf.umd.min.js'];
 const JSQR = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
 
 self.addEventListener('install', e => {

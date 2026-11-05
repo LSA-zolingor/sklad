@@ -340,7 +340,7 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
   <label class="f" id="rp-whL">Склад<select id="rp-wh"><option value="">Оба склада</option><option value="JKSZ">Основной JKsz</option><option value="JKSO">Склад JKso</option></select></label>
   <p class="hint" id="rp-sum" style="margin:0"></p>
   <div id="rp-prev"></div>
-  <div class="row"><button class="btn main" id="rp-print" type="button">Печать / PDF</button><button class="btn" id="rp-share" type="button">Отправить</button><button class="btn" id="rp-csv" type="button">Excel</button></div>
+  <div class="row"><button class="btn main" id="rp-pdf" type="button">Отправить PDF</button><button class="btn" id="rp-print" type="button">Печать</button><button class="btn" id="rp-share" type="button">Текстом</button><button class="btn" id="rp-csv" type="button">Excel</button></div>
 </div></dialog>
 
 <!-- расход списком -->
@@ -1077,6 +1077,29 @@ function openRep(){const V=view(),people=[...new Set(Object.values(V.moves).map(
 ['#rp-per','#rp-who','#rp-wh','#rp-from','#rp-to'].forEach(id=>$(id).addEventListener('change',renderRep));
 $('#repOpen').onclick=openRep;$('#rp-close').onclick=()=>$('#dlgRep').close();
 $('#rp-print').onclick=()=>{const d=repData();$('#pageStyle').textContent='@page{size:A4;margin:12mm}';$('#print').innerHTML=repHTML(d);$('#dlgRep').close();setTimeout(()=>window.print(),150);};
+/* PDF-файл отчёта (05.11.2026): отчёт рисуется в картинку (html2canvas) и раскладывается по листам A4 (jsPDF),
+   разрывы страниц — только между строками таблицы. Библиотеки лежат в lib/ и кэшируются для работы без сети. */
+function loadLib(src,ok){return ok()?Promise.resolve():new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=()=>res();s.onerror=()=>rej(new Error('lib'));document.head.appendChild(s);});}
+async function repPdf(d){
+  await loadLib('lib/html2canvas.min.js',()=>window.html2canvas);await loadLib('lib/jspdf.umd.min.js',()=>window.jspdf);
+  const box=document.createElement('div');box.style.cssText='position:fixed;left:-10000px;top:0;width:190mm;background:#fff';box.innerHTML=repHTML(d);document.body.appendChild(box);
+  try{const el=box.firstElementChild,W=el.offsetWidth,H=el.offsetHeight,base=el.getBoundingClientRect().top;
+    const cuts=[...el.querySelectorAll('h2,tr,p,.rsig')].map(x=>Math.round(x.getBoundingClientRect().top-base));
+    const cv=await window.html2canvas(el,{scale:1.7,backgroundColor:'#ffffff',logging:false}),k=cv.width/W;
+    const pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4'}),mm=W/190,pageH=Math.floor(277*mm);
+    let y=0,first=true;
+    while(y<H-2){let end=y+pageH;if(end<H){const c=cuts.filter(t=>t>y+40&&t<=end);if(c.length)end=Math.max(...c);}else end=H;
+      const pc=document.createElement('canvas');pc.width=cv.width;pc.height=Math.ceil((end-y)*k);
+      const g=pc.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,pc.width,pc.height);g.drawImage(cv,0,Math.floor(y*k),cv.width,pc.height,0,0,pc.width,pc.height);
+      if(!first)pdf.addPage();first=false;pdf.addImage(pc.toDataURL('image/jpeg',0.8),'JPEG',10,10,190,(end-y)/mm);y=end;}
+    return pdf.output('blob');}
+  finally{box.remove();}}
+$('#rp-pdf').onclick=async()=>{const d=repData(),b=$('#rp-pdf');if(b.disabled)return;b.disabled=true;b.textContent='Готовлю PDF…';
+  try{const blob=await repPdf(d),t=repTitle(d),name=`Otchet-sklad-${d.a}${d.a!==d.b?'_'+d.b:''}.pdf`,f=new File([blob],name,{type:'application/pdf'});
+    try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Отчёт по складу за '+t.per});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);toast('PDF сохранён в «Загрузки»');}
+  catch(e){toast(e&&e.message==='lib'?'Нет связи: для первого PDF нужен интернет':'Не получилось сделать PDF');}
+  finally{b.disabled=false;b.textContent='Отправить PDF';}};
 $('#rp-share').onclick=async()=>{const t=repText(repData());try{if(navigator.share){await navigator.share({title:'Отчёт по складу',text:t});return;}}catch(e){if(e&&e.name==='AbortError')return;}
   try{await navigator.clipboard.writeText(t);toast('Отчёт скопирован — вставь в мессенджер');}catch(e){toast('Не удалось скопировать');}};
 $('#rp-csv').onclick=()=>{const d=repData();if(!d.mv.length){toast('За период движений нет');return;}
