@@ -129,9 +129,10 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
 .cam{position:relative;height:100%;display:flex;flex-direction:column}
 .cam video{flex:1;width:100%;min-height:0;object-fit:cover;background:#000}
 .cam .frame{position:absolute;left:50%;top:42%;width:min(68vw,320px);aspect-ratio:1;transform:translate(-50%,-50%);border:4px solid rgba(255,255,255,.9);border-radius:18px;box-shadow:0 0 0 2000px rgba(0,0,0,.35);pointer-events:none}
-.cam .bar{padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;background:#0E1513}
+.cam .bar{padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;background:#0E1513;position:relative;z-index:1}
 .cam .bar .row{flex-wrap:nowrap}
 .cam .bar input{background:#1B2320;color:#fff;border-color:#33403B}
+.cam .bar .btn:not(.main){background:#1B2320;color:#fff;border-color:#33403B}
 .cam .msg{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:12px;right:12px;text-align:center;font-weight:600;text-shadow:0 1px 3px #000}
 .qty{display:grid;grid-template-columns:56px 1fr 56px;gap:8px}
 .qty button{font-size:26px;font-weight:700}
@@ -179,6 +180,8 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3"/><rect x="7" y="7" width="4" height="4"/><rect x="13" y="13" width="4" height="4"/><path d="M13 7h4v4M7 13v4h4"/></svg>
       Сканировать этикетку
     </button>
+    <button class="btn big" id="batchScanBtn" type="button" style="width:100%;margin-top:10px">📋 Расход списком: сканировать подряд</button>
+    <div class="card" id="batchCard" hidden style="margin-top:10px;border:2px solid var(--vis)"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><b id="batchCardT"></b><button class="btn main" id="batchCardOpen" type="button">Открыть</button></div></div>
     <div class="card" style="margin-top:12px">
       <label class="f">Или введи код, название или артикул<input id="codeIn" type="text" autocapitalize="characters" autocomplete="off" placeholder="код, название или артикул"></label>
       <div class="row" style="margin-top:8px"><button class="btn" id="codeGo" type="button">Открыть</button><button class="btn" id="voiceGo" type="button" hidden>🎤 Сказать</button><button class="btn" id="scanAdd" type="button">＋ Новая позиция</button></div>
@@ -200,6 +203,7 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
     <div class="row" style="margin-bottom:10px">
       <button class="btn" id="selAll" type="button">Выбрать все</button>
       <button class="btn dark" id="printSel" type="button">Печать этикеток</button>
+      <button class="btn main" id="batchSel" type="button">Расход выбранных</button>
       <button class="btn" id="printLocs" type="button">Этикетки ячеек</button>
     </div>
     <div id="itemList"></div>
@@ -272,6 +276,7 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
   <div class="msg" id="camMsg">Наведи камеру на QR-код этикетки</div>
   <div class="bar">
     <button class="btn" id="camClose" type="button" autofocus>Закрыть</button>
+    <button class="btn main" id="camDone" type="button" hidden>Готово</button>
   </div>
 </div></dialog>
 
@@ -299,6 +304,19 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
   <label class="f" id="mv-mhL">Моточасы станка (если знаешь)<input id="mv-mh" inputmode="decimal" placeholder="например 4520"></label>
   <label class="f">Примечание<input id="mv-note" type="text"></label>
   <div class="row" style="justify-content:flex-end"><button class="btn ghost" id="mv-cancel" type="button">Отмена</button><button class="btn main" id="mv-ok" type="button">Записать</button></div>
+</div></dialog>
+
+<!-- расход списком -->
+<dialog id="dlgBatch"><div class="dbody">
+  <div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h3 style="margin:0">Расход списком</h3><button class="btn ghost" id="bt-close" type="button" aria-label="Закрыть">✕</button></div>
+  <p class="hint" style="margin:0">У каждой позиции своё количество. «Кому, куда», моточасы и примечание общие для всего списка.</p>
+  <div id="bt-list"></div>
+  <button class="btn" id="bt-scan" type="button">📷 Сканировать ещё</button>
+  <label class="f">Кому, куда (станок, ФИО, участок)<input id="bt-whom" type="text" list="whomList" placeholder="станок № 2, Иванов"></label>
+  <div class="grid2" id="bt-mach"></div>
+  <label class="f">Моточасы станка (если знаешь)<input id="bt-mh" inputmode="decimal" placeholder="например 4520"></label>
+  <label class="f">Примечание<input id="bt-note" type="text" placeholder="ТО-250, замена фильтров"></label>
+  <div class="row" style="justify-content:flex-end"><button class="btn ghost" id="bt-clear" type="button" style="margin-right:auto">Очистить</button><button class="btn main" id="bt-ok" type="button">Списать</button></div>
 </div></dialog>
 
 <!-- редактирование товара -->
@@ -473,6 +491,7 @@ let S;try{S=JSON.parse(localStorage.getItem(LS)||'null');}catch(e){S=null;}
 if(!S||!S.items)S={deviceId:rid(),user:'',wh:'',items:{},moves:{},invs:{},dItems:{},dMoves:{},dInvs:{},cfg:{url:'',key:''},lastSync:'',tab:'scan',invActive:null,recentWhom:[]};
 ['items','moves','invs','dItems','dMoves','dInvs','cfg','reqs','dReqs'].forEach(k=>{if(!S[k]||typeof S[k]!=='object')S[k]={};});
 if(!Array.isArray(S.recentWhom))S.recentWhom=[];
+if(!Array.isArray(S.batch))S.batch=[];
 function save(){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){toast('Память телефона переполнена — отправь данные в таблицу');}}
 let shared={items:[],moves:[],invs:[],at:''};
 try{const c=JSON.parse(localStorage.getItem(SH)||'null');if(c)shared=Object.assign(shared,c);}catch(e){}
@@ -557,16 +576,17 @@ function parseCode(raw){raw=String(raw||'').trim();
   const m=/#([il])=([^&]+)/.exec(raw);if(m){const v=decodeURIComponent(m[2]);return m[1]==='i'?{item:v.toUpperCase()}:{loc:v};}
   return{item:raw.toUpperCase().replace(/\s/g,'')};}
 function handleCode(raw){const p=parseCode(raw),V=view();
-  if(p.loc){showLoc(p.loc);return;}
+  if(p.loc){if(scanMode==='batch'){toast('Это QR ячейки. Наведи на этикетку детали');return;}showLoc(p.loc);return;}
   let c=p.item;if(!V.items[c]){const a=Object.values(V.items).filter(i=>(i.art||'').toUpperCase().replace(/\s/g,'')===c);const f=a.find(inWh)||a[0];if(f)c=f.code;}
   if(!V.items[c]&&!/#[il]=/.test(String(raw))){const f=findItems(raw);
     if(f.length===1)c=f[0].code;
-    else if(f.length>1&&scanMode!=='count'){setTab('items');$('#q').value=String(raw).trim();renderItems();toast('Найдено позиций: '+f.length);return;}}
+    else if(f.length>1&&scanMode==='card'){setTab('items');$('#q').value=String(raw).trim();renderItems();toast('Найдено позиций: '+f.length);return;}}
   if(!V.items[c]){const r=String(raw).trim();toast('«'+r+'» не найдено: ни в коде, ни в названии, ни в артикуле');
-    if(!/#[il]=/.test(r)&&scanMode!=='count'){setTab('scan');$('#notFoundT').textContent='«'+r+'» нет на складе. Если это новая запчасть — добавь её:';$('#notFoundAdd').textContent='＋ Добавить «'+r+'»';$('#notFoundAdd').dataset.name=r;const zk=ZC?zSearch(r).total:0;$('#notFoundKat').hidden=!zk;if(zk){$('#notFoundKat').textContent='📚 В каталоге: '+zk;$('#notFoundKat').dataset.q=r;}$('#notFound').hidden=false;}
+    if(!/#[il]=/.test(r)&&scanMode==='card'){setTab('scan');$('#notFoundT').textContent='«'+r+'» нет на складе. Если это новая запчасть — добавь её:';$('#notFoundAdd').textContent='＋ Добавить «'+r+'»';$('#notFoundAdd').dataset.name=r;const zk=ZC?zSearch(r).total:0;$('#notFoundKat').hidden=!zk;if(zk){$('#notFoundKat').textContent='📚 В каталоге: '+zk;$('#notFoundKat').dataset.q=r;}$('#notFound').hidden=false;}
     return;}
   $('#notFound').hidden=true;
   /* отсканировали позицию другого склада — переключаемся на её склад */
+  if(scanMode==='batch'){batchAdd(c);return;}
   if(scanMode!=='count'&&!inWh(V.items[c]))setWh(whOf(V.items[c]),'Позиция другого склада, переключено');
   if(scanMode==='count'&&activeInv()){openCount(c);return;}
   openItem(c);}
@@ -591,7 +611,8 @@ function showLoc(loc){if(hasJz()){const w=/^JKSO-/i.test(loc)?'JKSO':'JKSZ';if(w
 /* ---------- камера ---------- */
 let stream=null,scanTimer=null,detector=null,scanMode='card',lastHit='';
 async function openScan(mode){scanMode=mode||'card';$('#dlgCam').showModal();
-  $('#camMsg').textContent=scanMode==='count'?'Инвентаризация: наведи на этикетку':'Наведи камеру на QR-код этикетки';
+  $('#camMsg').textContent=scanMode==='count'?'Инвентаризация: наведи на этикетку':scanMode==='batch'?'Расход списком: наводи на этикетки по очереди':'Наведи камеру на QR-код этикетки';
+  $('#camDone').hidden=scanMode!=='batch';batchCamBtn();
   try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});}
   catch(e){$('#camMsg').textContent='Нет доступа к камере. Разреши камеру для сайта или введи код вручную.';return;}
   const v=$('#video');v.srcObject=stream;try{await v.play();}catch(e){}
@@ -606,9 +627,12 @@ async function loopScan(){if(!stream)return;const v=$('#video');let val='';
     if(detector){const r=await detector.detect(v);if(r&&r[0])val=r[0].rawValue;}
     else if(window.jsQR){const w=Math.min(v.videoWidth,800),h=Math.round(v.videoHeight*w/v.videoWidth);cv.width=w;cv.height=h;cx.drawImage(v,0,0,w,h);
       const r=window.jsQR(cx.getImageData(0,0,w,h).data,w,h,{inversionAttempts:'dontInvert'});if(r)val=r.data;}}}catch(e){}
-  if(val&&val!==lastHit){lastHit=val;if(navigator.vibrate)navigator.vibrate(60);closeScan();handleCode(val);return;}
+  if(val&&val!==lastHit){lastHit=val;if(navigator.vibrate)navigator.vibrate(60);
+    /* расход списком: камера остаётся открытой; тот же QR повторно засчитывается через 2,5 с */
+    if(scanMode==='batch'){handleCode(val);setTimeout(()=>{if(lastHit===val)lastHit='';},2500);scanTimer=setTimeout(loopScan,500);return;}
+    const md=scanMode;closeScan();scanMode=md;handleCode(val);scanMode='card';return;}
   scanTimer=setTimeout(loopScan,180);}
-function closeScan(){clearTimeout(scanTimer);if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}if($('#dlgCam').open)$('#dlgCam').close();}
+function closeScan(){const b=scanMode==='batch';scanMode='card';$('#camDone').hidden=true;clearTimeout(scanTimer);if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}if($('#dlgCam').open)$('#dlgCam').close();if(b&&S.batch.length)openBatch();}
 $('#scanBtn').onclick=()=>openScan('card');
 $('#camClose').onclick=closeScan;$('#dlgCam').addEventListener('cancel',()=>closeScan());
 
@@ -624,6 +648,7 @@ function openItem(code){const V=view(),it=V.items[code];if(!it){toast('Пози�
   <div class="grid2"><button class="btn main big" type="button" data-op="in">Приход</button><button class="btn main big" type="button" data-op="out">Расход</button><button class="btn" type="button" data-op="move">Переместить</button><button class="btn" type="button" id="it-edit">Изменить</button></div>
   <div><div class="muted" style="font-size:14px;margin-bottom:4px">Выдать на станок</div><div class="grid2">${MACHINES.map(m=>`<button class="btn main big" type="button" data-mach="${esc(m)}">${esc(m)}</button>`).join('')}</div></div>
   ${(()=>{const z=zForItem(it);return z?`<button class="btn" type="button" data-zitsec="${z.si}:${z.pi}">📖 Чертёж в каталоге${z.n>1?' ('+z.n+')':''}</button>`:'';})()}
+  <button class="btn" type="button" id="it-batch">📋 В расход списком${(()=>{const b=S.batch.find(x=>x.code===it.code);return b?' (уже '+fq(b.q)+')':'';})()}</button>
   <div class="grid2"><button class="btn" type="button" id="it-print">Напечатать этикетку</button><button class="btn danger" type="button" id="it-del">🗑 Удалить позицию</button></div>
   ${mv.length?`<div><h3 style="font-size:18px;margin:4px 0">Движения</h3>${mv.map(undoRow).join('')}</div>`:''}`;
   if(!$('#dlgItem').open)$('#dlgItem').showModal();}
@@ -646,7 +671,8 @@ $('#itemBody').addEventListener('click',ev=>{const t=ev.target.closest('button')
   if(t.dataset.mach){openMove('out',t.dataset.mach);return;}
   if(t.id==='it-edit'){openEdit(cur);return;}
   if(t.id==='it-del'){deleteItem(cur);return;}
-  if(t.id==='it-print'){$('#dlgItem').close();openPrint([cur],'items');}});
+  if(t.id==='it-print'){$('#dlgItem').close();openPrint([cur],'items');}
+  if(t.id==='it-batch'){batchAdd(cur);$('#dlgItem').close();openBatch();}});
 
 /* ---------- операции ---------- */
 let op='in';
@@ -677,6 +703,53 @@ $('#mv-ok').onclick=()=>{const it=view().items[cur];
     const m={code:cur,type:op,qty:q,whom,note};if(mh)m.mh=mh;addMove(m);toast(`${TYPES[op]}: ${fq(q)} ${unitOf(it)}`);}
   delete $('#mv-ok').dataset.force;$('#mv-ok').textContent='Записать';
   $('#dlgMove').close();openItem(cur);renderActive();};
+
+/* ---------- расход списком (05.11.2026): галочки на «Складе» или сканирование подряд ----------
+   Список хранится в телефоне (S.batch), пока его не спишут или не очистят. Каждая позиция = отдельная строка расхода. */
+function batchAdd(code){const it=view().items[code];if(!it)return;const b=S.batch.find(x=>x.code===code);
+  if(b)b.q=num(b.q,0)+1;else S.batch.push({code,q:1});save();renderBatchCard();batchCamBtn();
+  const q=(b||S.batch[S.batch.length-1]).q;
+  $('#camMsg').textContent=`✓ ${it.name} — ${fq(q)} ${unitOf(it)}. В списке ${S.batch.length}`;
+  toast(`В списке: ${it.name} × ${fq(q)}`);
+  if($('#dlgBatch').open)renderBatch();}
+function batchCamBtn(){$('#camDone').textContent=S.batch.length?`Готово (${S.batch.length}) →`:'Готово';}
+function renderBatchCard(){const n=S.batch.length;$('#batchCard').hidden=!n;if(n)$('#batchCardT').textContent=`Расход списком: ${n} поз.`;}
+function batchShort(){return S.batch.filter(b=>{const it=view().items[b.code];return it&&num(b.q,0)>stockOf(b.code)+1e-9;});}
+function renderBatch(){const V=view();S.batch=S.batch.filter(b=>V.items[b.code]);
+  $('#bt-list').innerHTML=S.batch.length?S.batch.map((b,k)=>{const it=V.items[b.code],st=stockOf(b.code),over=num(b.q,0)>st+1e-9;
+    return `<div class="rec" style="grid-template-columns:1fr auto"><span><b>${esc(it.name)}</b>
+      <div class="t" style="font-size:13px;color:${over?'var(--danger)':'var(--muted)'}">${esc(it.code)}${it.loc?' · '+esc(it.loc):''} · остаток ${fq(st)} ${esc(unitOf(it))}${over?' — не хватает':''}</div></span>
+      <span class="row" style="gap:4px;flex-wrap:nowrap"><button class="btn" type="button" data-bq="${k}:-1" aria-label="Меньше" style="min-height:42px;padding:4px 12px">−</button>
+      <input data-bqi="${k}" inputmode="decimal" value="${esc(String(b.q).replace('.',','))}" aria-label="Количество" style="width:52px;text-align:center;font-size:18px;padding:6px 2px">
+      <button class="btn" type="button" data-bq="${k}:1" aria-label="Больше" style="min-height:42px;padding:4px 12px">+</button>
+      <button class="btn ghost" type="button" data-bdel="${k}" aria-label="Убрать" style="min-height:42px;padding:4px 10px">✕</button></span></div>`;}).join('')
+    :'<p class="muted" style="margin:0">Список пуст. Отметь позиции на вкладке «Склад» или нажми «Сканировать ещё».</p>';
+  $('#bt-ok').textContent=S.batch.length?`Списать (${S.batch.length})`:'Списать';$('#bt-ok').disabled=!S.batch.length;
+  delete $('#bt-ok').dataset.force;renderBatchCard();}
+function openBatch(){$('#whomList').innerHTML=S.recentWhom.map(w=>`<option value="${esc(w)}">`).join('');
+  $('#bt-mach').innerHTML=MACHINES.map(m=>`<button class="btn" type="button" data-bmach="${esc(m)}">${esc(m)}</button>`).join('');
+  renderBatch();if(!$('#dlgBatch').open)$('#dlgBatch').showModal();}
+$('#bt-list').addEventListener('click',ev=>{const t=ev.target.closest('button');if(!t)return;
+  if(t.dataset.bq){const [k,d]=t.dataset.bq.split(':').map(Number);const b=S.batch[k];if(!b)return;b.q=Math.max(1,num(b.q,0)+d);save();renderBatch();}
+  if(t.dataset.bdel){S.batch.splice(+t.dataset.bdel,1);save();renderBatch();}});
+$('#bt-list').addEventListener('change',ev=>{const k=ev.target.dataset.bqi;if(k==null)return;const b=S.batch[+k];if(!b)return;const q=num(ev.target.value,0);b.q=q>0?q:1;save();renderBatch();});
+$('#bt-mach').addEventListener('click',ev=>{const t=ev.target.closest('[data-bmach]');if(!t)return;$('#bt-whom').value=t.dataset.bmach;});
+$('#bt-close').onclick=()=>$('#dlgBatch').close();
+$('#bt-scan').onclick=()=>{$('#dlgBatch').close();openScan('batch');};
+$('#bt-clear').onclick=()=>{const t=$('#bt-clear');if(!S.batch.length)return;
+  if(!t.dataset.arm){t.dataset.arm='1';t.textContent='Точно очистить?';setTimeout(()=>{delete t.dataset.arm;t.textContent='Очистить';},4000);return;}
+  delete t.dataset.arm;t.textContent='Очистить';S.batch=[];save();renderBatch();};
+$('#bt-ok').onclick=()=>{const t=$('#bt-ok');if(!S.batch.length)return;const short=batchShort();
+  if(short.length&&!t.dataset.force){t.dataset.force='1';t.textContent=`Не хватает у ${short.length} поз. — всё равно списать`;setTimeout(()=>{if(t.dataset.force){delete t.dataset.force;t.textContent=`Списать (${S.batch.length})`;}},4000);return;}
+  const whom=$('#bt-whom').value.trim();if(whom)S.recentWhom=[whom].concat(S.recentWhom.filter(w=>w!==whom)).slice(0,12);
+  const mh=$('#bt-mh').value.trim().replace(/\s/g,'');let note=$('#bt-note').value.trim();if(mh)note='моточасы '+mh+(note?'; '+note:'');
+  const n=S.batch.length;S.batch.forEach(b=>{const m={code:b.code,type:'out',qty:num(b.q,0),whom,note};if(mh)m.mh=mh;addMove(m);});
+  S.batch=[];save();$('#bt-whom').value='';$('#bt-mh').value='';$('#bt-note').value='';
+  $('#dlgBatch').close();renderBatchCard();renderActive();toast(`Списано позиций: ${n}`+(whom?' → '+whom:''));};
+$('#batchScanBtn').onclick=()=>openScan('batch');
+$('#batchCardOpen').onclick=openBatch;
+$('#camDone').onclick=()=>closeScan();
+renderBatchCard();
 
 /* ---------- редактирование ---------- */
 let editCode=null;
@@ -738,6 +811,7 @@ function renderItems(){const V=view(),q=$('#q').value.trim().toLowerCase();
   else if(filt.startsWith('c:'))its=its.filter(i=>i.cat===filt.slice(2));
   its.sort((a,b)=>(a.loc||'яяя').localeCompare(b.loc||'яяя','ru')||a.name.localeCompare(b.name,'ru'));
   $('#printSel').textContent=sel.size?`Печать этикеток (${sel.size})`:'Печать этикеток';
+  $('#batchSel').textContent=sel.size?`Расход выбранных (${sel.size})`:'Расход выбранных';
   $('#demoBtn').hidden=Object.keys(V.items).length>0;
   $('#preset1cBtn').hidden=PRESET_1C.every(r=>V.items[r[0]]);
   $('#presetLocBtn').hidden=!Object.entries(PRESET_LOC).some(([c,l])=>V.items[c]&&V.items[c].loc!==l);
@@ -749,6 +823,9 @@ $('#q').addEventListener('input',renderItems);
 $('#flt').addEventListener('click',ev=>{const b=ev.target.closest('[data-f]');if(!b)return;filt=b.dataset.f;renderItems();});
 $('#itemList').addEventListener('change',ev=>{const c=ev.target.dataset.sel;if(!c)return;ev.target.checked?sel.add(c):sel.delete(c);renderItems();});
 $('#selAll').onclick=()=>{const boxes=$$('#itemList [data-sel]');const all=boxes.every(b=>sel.has(b.dataset.sel));boxes.forEach(b=>all?sel.delete(b.dataset.sel):sel.add(b.dataset.sel));renderItems();};
+$('#batchSel').onclick=()=>{if(!sel.size){toast('Отметь галочками позиции для расхода');return;}
+  const V=view();let n=0;[...sel].forEach(c=>{if(V.items[c]&&!S.batch.some(b=>b.code===c)){S.batch.push({code:c,q:1});n++;}});
+  sel.clear();save();renderItems();openBatch();if(n)toast('В список добавлено: '+n);};
 $('#printSel').onclick=()=>{const codes=sel.size?[...sel]:$$('#itemList [data-sel]').map(b=>b.dataset.sel);if(!codes.length){toast('Нет позиций для печати');return;}openPrint(codes,'items');};
 $('#printLocs').onclick=()=>{const locs=[...new Set(Object.values(view().items).map(i=>i.loc).filter(Boolean))].sort();if(!locs.length){toast('У позиций не заданы адреса хранения');return;}openPrint(locs,'locs');};
 
