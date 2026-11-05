@@ -275,7 +275,8 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
       <h2>Выгрузка для Excel</h2>
       <div class="row"><button class="btn" id="csvStock" type="button">Остатки</button><button class="btn" id="csvMoves" type="button">Движения</button></div>
     </div>
-    <h2 class="cond" style="margin:16px 2px 8px;font-size:22px">Последние движения</h2>
+    <h2 class="cond" id="mvHead" style="margin:16px 2px 8px;font-size:22px">Все движения</h2>
+    <div class="row" style="margin:0 0 8px"><input id="mvQ" type="search" placeholder="Поиск: деталь, код, станок, ФИО" style="flex:2;min-width:0"><select id="mvT" style="flex:1;min-width:0"><option value="">Все</option><option value="in">Приход</option><option value="out">Расход</option><option value="move">Перемещение</option><option value="adj">Инвентаризация</option></select></div>
     <div id="moveList"></div>
   </section>
 </main>
@@ -596,7 +597,7 @@ function renderScan(){const V=view(),its=Object.values(V.items).filter(inWh);
   $('#scanStats').innerHTML=`<div><strong>${its.length}</strong><span>позиций</span></div><div><strong>${new Set(its.map(i=>i.loc).filter(Boolean)).size}</strong><span>адресов</span></div><div><strong class="${low.length?'low':''}">${low.length}</strong><span>ниже минимума</span></div>`;
   $('#scanLow').innerHTML=low.length?`<div class="card"><h2>Пора заказать</h2>${low.slice(0,8).map(i=>`<div class="it" style="grid-template-columns:1fr auto;padding:8px 0"><button class="open" type="button" data-open="${esc(i.code)}"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.code)}${i.loc?' · '+esc(i.loc):''}</div></button><div class="q low">${fq(stockOf(i.code))}<small> / мин ${fq(num(i.min))} ${esc(unitOf(i))}</small></div></div>`).join('')}</div>`:'';
   const mv=Object.values(V.moves).filter(m=>!V.items[m.code]||inWh(V.items[m.code])).sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,6);
-  $('#scanLast').innerHTML=mv.length?`<div class="card"><h2>Последние операции</h2>${mv.map(moveRow).join('')}</div>`
+  $('#scanLast').innerHTML=mv.length?`<div class="card"><h2>Последние операции</h2>${mv.map(moveRow).join('')}<button class="btn" id="allMoves" type="button" style="width:100%;margin-top:8px">Все операции →</button></div>`
     :(its.length?'':'<div class="card"><h2>С чего начать</h2><ol style="margin:0;padding-left:22px"><li>Вкладка «Склад»: добавь позиции или загрузи список из Excel.</li><li>Напечатай этикетки и наклей на ячейки и товар.</li><li>Дальше всё через «Сканировать»: приход, выдача, перемещение, инвентаризация.</li></ol></div>');
 }
 const TYPES={in:'Приход',out:'Расход',move:'Перемещение',adj:'Инвентаризация'};
@@ -999,10 +1000,19 @@ $('#ct-ok').onclick=()=>{const inv=activeInv();if(!inv)return;const v=$('#ct-qty
 $('#ct-qty').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ct-ok').click();});
 
 /* ---------- журнал ---------- */
-function renderLog(){const mv=Object.values(view().moves).sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,80);
-  $('#moveList').innerHTML=mv.length?`<div class="list" style="padding:0 12px">${mv.map(moveRow).join('')}</div>`:'<div class="card muted">Движений пока нет.</div>';
+/* 05.11.2026: журнал показывает все движения порциями по 50 + поиск и фильтр по типу */
+let logN=50;
+function renderLog(){const V=view(),q=$('#mvQ').value.trim().toLowerCase(),t=$('#mvT').value;
+  const all=Object.values(V.moves).filter(m=>{if(t&&m.type!==t)return false;if(!q)return true;const it=V.items[m.code]||{};
+    return [m.code,it.name,it.art,m.whom,m.by,m.note,m.from,m.to].join(' ').toLowerCase().includes(q);}).sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+  const mv=all.slice(0,logN);
+  $('#moveList').innerHTML=mv.length?`<div class="list" style="padding:0 12px">${mv.map(moveRow).join('')}</div><p class="muted" style="margin:8px 2px">Показано ${mv.length} из ${all.length}</p>${all.length>mv.length?'<button class="btn" id="mvMore" type="button" style="width:100%">Показать ещё</button>':''}`
+    :`<div class="card muted">${q||t?'Ничего не найдено.':'Движений пока нет.'}</div>`;
   $('#s-user').value=S.user||'';renderConn();}
 $('#s-relogin').onclick=()=>openLogin();
+$('#mvQ').addEventListener('input',()=>{logN=50;renderLog();});$('#mvT').onchange=()=>{logN=50;renderLog();};
+$('#moveList').addEventListener('click',ev=>{if(ev.target.id==='mvMore'){logN+=100;renderLog();}});
+$('#scanLast').addEventListener('click',ev=>{if(ev.target.id==='allMoves'){setTab('log');setTimeout(()=>$('#mvHead').scrollIntoView(),50);}});
 const csvJoin=rows=>'﻿'+rows.map(r=>r.map(c=>{c=String(c==null?'':c);return /[;"\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(';')).join('\r\n');
 const dec=n=>String(Math.round(n*1000)/1000).replace('.',',');
 async function download(name,data){const blob=new Blob([data],{type:'text/csv;charset=utf-8'});
