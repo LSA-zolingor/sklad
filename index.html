@@ -161,7 +161,7 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
 </head>
 <body>
 <header class="top">
-  <h1>Склад<small id="who">учёт и инвентаризация</small></h1>
+  <h1>Склад<small id="who" role="button" tabindex="0" style="cursor:pointer">учёт и инвентаризация</small></h1>
   <button class="sync" id="syncBtn" type="button">Отправить</button>
   <div id="whBar" role="group" aria-label="Какой склад" hidden></div>
 </header>
@@ -229,8 +229,8 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
     <div class="card">
       <h2>Кто работает</h2>
       <div class="grid2">
-        <label class="f">ФИО<input id="s-user" type="text"></label>
-        <label class="f">Склад<input id="s-wh" type="text" placeholder="например Склад ГСМ, участок 2"></label>
+        <label class="f">ФИО<input id="s-user" type="text" readonly></label>
+        <div class="f" style="justify-content:flex-end"><button class="btn" id="s-relogin" type="button">Сменить сотрудника</button></div>
       </div>
     </div>
     <div class="card">
@@ -338,6 +338,13 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
 </div></dialog>
 
 <!-- импорт -->
+<dialog id="dlgLogin"><div class="dbody">
+  <h3>Кто работает?</h3>
+  <p class="hint" style="margin:0">Все приходы, выдачи, заявки и правки записываются на это имя.</p>
+  <div class="chips" id="lg-recent"></div>
+  <label class="f">Фамилия и имя (или инициалы)<input id="lg-name" type="text" autocomplete="name" autocapitalize="words" placeholder="Иванов И.И."></label>
+  <button class="btn main big" id="lg-ok" type="button">Войти</button>
+</div></dialog>
 <dialog id="dlgSure"><div class="dbody">
   <h3 id="su-title">Подтверждение</h3>
   <p id="su-text" style="margin:0;font-size:17px"></p>
@@ -506,7 +513,22 @@ const itemURL=c=>BASE+'#i='+encodeURIComponent(c),locURL=l=>BASE+'#l='+encodeURI
 const unitOf=it=>it&&it.unit||'шт';
 
 /* ---------- шапка ---------- */
-function renderWho(){$('#who').textContent=[S.wh||'учёт и инвентаризация',S.user].filter(Boolean).join(', ');}
+function renderWho(){$('#who').textContent=S.user?'👤 '+S.user+' · сменить':'👤 кто работает?';}
+/* вход: при каждом запуске приложения нужно подтвердить, кто работает (ФИО) — все записи идут на это имя */
+if(!Array.isArray(S.recentUsers))S.recentUsers=S.user?[S.user]:[];
+let loginThen=null;
+function openLogin(then){loginThen=typeof then==='function'?then:null;const d=$('#dlgLogin');$('#lg-name').value=S.user||'';
+  $('#lg-recent').innerHTML=S.recentUsers.map(n=>`<button type="button" data-lg="${esc(n)}" aria-pressed="${n===S.user}">${esc(n)}</button>`).join('');
+  if(!d.open)d.showModal();if(!S.recentUsers.length)setTimeout(()=>$('#lg-name').focus(),50);}
+function doLogin(name){name=String(name||'').trim().replace(/\s+/g,' ');
+  if(name.length<3||!/[A-Za-zА-Яа-яЁё]{2}/.test(name)){toast('Впиши фамилию и имя');$('#lg-name').focus();return;}
+  S.user=name;S.recentUsers=[name].concat(S.recentUsers.filter(n=>n!==name)).slice(0,8);S.loginAt=new Date().toISOString();save();
+  $('#dlgLogin').close();renderWho();const u=$('#s-user');if(u)u.value=name;toast('Работает: '+name);const f=loginThen;loginThen=null;if(f)f();}
+$('#lg-ok').onclick=()=>doLogin($('#lg-name').value);
+$('#lg-name').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin($('#lg-name').value);});
+$('#lg-recent').addEventListener('click',ev=>{const b=ev.target.closest('[data-lg]');if(b)doLogin(b.dataset.lg);});
+$('#dlgLogin').addEventListener('cancel',e=>e.preventDefault());
+$('#who').addEventListener('click',()=>openLogin());$('#who').addEventListener('keydown',e=>{if(e.key==='Enter')openLogin();});
 let syncing=false;
 const pending=()=>Object.keys(S.dItems).length+Object.keys(S.dMoves).length+Object.keys(S.dInvs).length+Object.keys(S.dReqs).length;
 function renderStatus(){const b=$('#syncBtn'),n=pending();b.classList.toggle('pending',n>0);b.disabled=syncing;
@@ -793,7 +815,7 @@ const FMT={
   't43x25':{page:'43mm 25mm',w:43,h:25,cols:1,rows:1,mt:0,ml:0,qr:20}};
 let prList=[],prKind='items';
 function labelHTML(x,f){
-  if(prKind==='locs')return `<div class="lbl loc" style="width:${f.w}mm;height:${f.h}mm">${QR.svg(locURL(x),{quiet:1})}<div class="tx"><div class="cd">${esc(x)}</div><div class="ar">ячейка · ${esc(S.wh||'склад')}</div></div></div>`;
+  if(prKind==='locs')return `<div class="lbl loc" style="width:${f.w}mm;height:${f.h}mm">${QR.svg(locURL(x),{quiet:1})}<div class="tx"><div class="cd">${esc(x)}</div><div class="ar">ячейка · склад ${/^JKSO-/i.test(x)?'JKso':'JKsz'}</div></div></div>`;
   const it=view().items[x];if(!it)return '';
   return `<div class="lbl" style="width:${f.w}mm;height:${f.h}mm">${QR.svg(itemURL(it.code),{quiet:1})}<div class="tx"><div class="cd">${esc(it.code)}</div><div class="nm2">${esc(it.name)}</div>${it.art?`<div class="ar">арт. ${esc(it.art)}</div>`:''}${it.loc?`<div class="lc">${esc(it.loc)}</div>`:''}</div></div>`;}
 function buildSheets(f,copies){const all=[];prList.forEach(x=>{for(let i=0;i<copies;i++)all.push(x);});
@@ -863,9 +885,8 @@ $('#ct-qty').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ct-ok').click
 /* ---------- журнал ---------- */
 function renderLog(){const mv=Object.values(view().moves).sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,80);
   $('#moveList').innerHTML=mv.length?`<div class="list" style="padding:0 12px">${mv.map(moveRow).join('')}</div>`:'<div class="card muted">Движений пока нет.</div>';
-  $('#s-user').value=S.user||'';$('#s-wh').value=S.wh||'';renderConn();}
-$('#s-user').addEventListener('input',e=>{S.user=e.target.value.trim();save();renderWho();});
-$('#s-wh').addEventListener('input',e=>{S.wh=e.target.value.trim();save();renderWho();});
+  $('#s-user').value=S.user||'';renderConn();}
+$('#s-relogin').onclick=()=>openLogin();
 const csvJoin=rows=>'﻿'+rows.map(r=>r.map(c=>{c=String(c==null?'':c);return /[;"\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(';')).join('\r\n');
 const dec=n=>String(Math.round(n*1000)/1000).replace('.',',');
 async function download(name,data){const blob=new Blob([data],{type:'text/csv;charset=utf-8'});
@@ -1075,7 +1096,7 @@ zLoad();
 (()=>{let n=0;Object.values(view().items).forEach(it=>{if(!/^JZSO-/i.test(it.loc||''))return;
   putItem(Object.assign({},it,{loc:'JKSO-'+it.loc.slice(5),note:String(it.note||'').replace('Склад JZso','Склад JKso')}));n++;});
   if(n)setTimeout(()=>toast('Склад переименован в JKso: '+n+' позиций'),800);})();
-renderWho();renderStatus();setTab(S.tab||'scan');readHash();autoSync(2000);
+renderWho();renderStatus();setTab(S.tab||'scan');openLogin(readHash);autoSync(2000);
 
 /* ---------- установка и обновление ---------- */
 const isStandalone=()=>(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
