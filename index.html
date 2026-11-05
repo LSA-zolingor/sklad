@@ -465,7 +465,7 @@ const BASE=location.origin+location.pathname;
 const LS='sklad-v1',SH='sklad-shared-v1';
 let S;try{S=JSON.parse(localStorage.getItem(LS)||'null');}catch(e){S=null;}
 if(!S||!S.items)S={deviceId:rid(),user:'',wh:'',items:{},moves:{},invs:{},dItems:{},dMoves:{},dInvs:{},cfg:{url:'',key:''},lastSync:'',tab:'scan',invActive:null,recentWhom:[]};
-['items','moves','invs','dItems','dMoves','dInvs','cfg'].forEach(k=>{if(!S[k]||typeof S[k]!=='object')S[k]={};});
+['items','moves','invs','dItems','dMoves','dInvs','cfg','reqs','dReqs'].forEach(k=>{if(!S[k]||typeof S[k]!=='object')S[k]={};});
 if(!Array.isArray(S.recentWhom))S.recentWhom=[];
 function save(){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){toast('Память телефона переполнена — отправь данные в таблицу');}}
 let shared={items:[],moves:[],invs:[],at:''};
@@ -509,7 +509,7 @@ const unitOf=it=>it&&it.unit||'шт';
 /* ---------- шапка ---------- */
 function renderWho(){$('#who').textContent=[S.wh||'учёт и инвентаризация',S.user].filter(Boolean).join(', ');}
 let syncing=false;
-const pending=()=>Object.keys(S.dItems).length+Object.keys(S.dMoves).length+Object.keys(S.dInvs).length;
+const pending=()=>Object.keys(S.dItems).length+Object.keys(S.dMoves).length+Object.keys(S.dInvs).length+Object.keys(S.dReqs).length;
 function renderStatus(){const b=$('#syncBtn'),n=pending();b.classList.toggle('pending',n>0);b.disabled=syncing;
   b.textContent=syncing?'Отправка…':n?(navigator.onLine?`Отправить (${n})`:`Не отправлено (${n})`):(S.cfg.url?'Всё отправлено':'Таблица');}
 
@@ -889,10 +889,11 @@ async function sync(auto){auto=auto===true;if(syncing){if(auto)autoSync(5000);re
   if(!S.cfg.url){toast('Подключи Google Таблицу: вкладка «Журнал»');setTab('log');return;}
   if(!navigator.onLine){toast('Нет интернета. Записи сохранены на телефоне.');return;}
   syncing=true;renderStatus();
-  const sent={i:Object.assign({},S.dItems),m:Object.keys(S.dMoves),v:Object.assign({},S.dInvs)};
+  const sent={i:Object.assign({},S.dItems),m:Object.keys(S.dMoves),v:Object.assign({},S.dInvs),r:Object.keys(S.dReqs)};
   const docs=[];Object.keys(sent.i).forEach(c=>{if(S.items[c])docs.push({c:'items',id:c,data:S.items[c]});});
   sent.m.forEach(id=>{if(S.moves[id])docs.push({c:'moves',id,data:S.moves[id]});});
   Object.keys(sent.v).forEach(id=>{if(S.invs[id])docs.push({c:'invs',id,data:S.invs[id]});});
+  sent.r.forEach(id=>{if(S.reqs[id])docs.push({c:'reqs',id,data:S.reqs[id]});});
   const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),60000);
   try{const r=await fetch(S.cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:S.cfg.key||'',device:S.deviceId,docs}),signal:ctl.signal,redirect:'follow'});
     let j;try{j=JSON.parse(await r.text());}catch(e){throw{code:'bad_response'};}
@@ -902,6 +903,10 @@ async function sync(auto){auto=auto===true;if(syncing){if(auto)autoSync(5000);re
     Object.keys(sent.i).forEach(c=>{if(S.dItems[c]===sent.i[c]){delete S.dItems[c];delete S.items[c];}});
     sent.m.forEach(id=>{delete S.dMoves[id];delete S.moves[id];});
     Object.keys(sent.v).forEach(id=>{if(S.dInvs[id]===sent.v[id]){delete S.dInvs[id];if(id!==S.invActive)delete S.invs[id];}});
+    /* заявки снимаем с телефона, только если скрипт таблицы их знает (новый скрипт возвращает data.reqs);
+       старый скрипт заявки молча пропускает — тогда держим их и напоминаем обновить скрипт */
+    if(Array.isArray(d.reqs))sent.r.forEach(id=>{delete S.dReqs[id];delete S.reqs[id];});
+    else if(sent.r.length&&!auto)setTimeout(()=>toast('Заявки ждут: обнови скрипт таблицы, чтобы появился лист «Заявки»'),3300);
     S.lastSync=new Date().toISOString();dirty();renderActive();if(!auto)toast(docs.length?'Отправлено в таблицу':'Данные обновлены');}
   catch(e){const c=(e&&e.code)||(e&&e.name);
     if(auto&&!['bad_key','bad_response'].includes(c))return;
@@ -1018,9 +1023,9 @@ async function renderZch(){const box=$('#katBody');await zLoad();
       $('#zSecNone').hidden=shown>0;};q.oninput=f;f();}
   if(zView==='search'){const q=$('#zQ');q.addEventListener('keydown',e=>{if(e.key==='Enter')$('#zGo').click();});$('#zGo').onclick=()=>{zQuery=q.value.trim();renderZch();};}
   if(zView==='cart'&&S.zchCart.length){$('#zNote').oninput=e=>{S.zchNote=e.target.value;save();};
-    $('#zSend').onclick=async()=>{const t=zCartText();try{if(navigator.share){await navigator.share({title:'Заявка на запчасти',text:t});return;}}catch(e){if(e&&e.name==='AbortError')return;}zCopyText(t);};
-    $('#zCopy').onclick=()=>zCopyText(zCartText());
-    $('#zClear').onclick=()=>{if(!confirm('Очистить заявку?'))return;S.zchCart=[];S.zchNote='';save();renderZch();};}}
+    $('#zSend').onclick=async()=>{zRecordReq();const t=zCartText();try{if(navigator.share){await navigator.share({title:'Заявка на запчасти',text:t});return;}}catch(e){if(e&&e.name==='AbortError')return;}zCopyText(t);};
+    $('#zCopy').onclick=()=>{zRecordReq();zCopyText(zCartText());};
+    $('#zClear').onclick=()=>{if(!confirm('Очистить заявку?'))return;S.zchCart=[];S.zchNote='';S.zchReq=null;save();renderZch();};}}
 function zWire(box){
   box.querySelectorAll('[data-zv]').forEach(b=>b.onclick=()=>{zView=b.dataset.zv;zHl=-1;renderZch();window.scrollTo(0,0);});
   box.querySelectorAll('[data-zsec]').forEach(b=>b.onclick=()=>{zSec=+b.dataset.zsec;zHl=-1;zView='sec';renderZch();window.scrollTo(0,0);});
@@ -1032,8 +1037,17 @@ function zWire(box){
     else{S.zchCart.push({key:zKey(p),pn:p[1],nm:p[2],q:1,pos:p[0],sec:s.c,secT:(s.c?s.c+' ':'')+s.t,at:Date.now()});toast('Добавлено в заявку: '+p[2]);}
     save();renderZch();});
   box.querySelectorAll('[data-zq]').forEach(b=>b.onclick=()=>{const [k,d]=b.dataset.zq.split(':').map(Number);const it=S.zchCart[k];if(!it)return;it.q=Math.max(1,it.q+d);save();renderZch();});}
+/* заявка уходит и в Google Таблицу (лист «Заявки»). Повторное нажатие без изменений не создаёт дубль. */
+function zRecordReq(){const sig=JSON.stringify([S.zchCart.map(c=>[c.key,c.sec,c.q]),S.zchNote||'']);
+  if(S.zchReq&&S.zchReq.sig===sig)return S.zchReq.no;
+  const at=new Date(),no=String(at.getDate()).padStart(2,'0')+String(at.getMonth()+1).padStart(2,'0')+'-'+rid().slice(0,4).toUpperCase();
+  const id='req-'+at.getTime().toString(36)+'-'+rid();
+  S.reqs[id]={id,no,at:at.toISOString(),by:S.user||'',dev:S.deviceId,wh:typeof curWh==='function'?curWh():'',note:S.zchNote||'',
+    lines:S.zchCart.map(c=>({pn:c.pn||'',nm:c.nm||'',q:c.q,sec:c.secT||'',pos:c.pos||''}))};
+  S.dReqs[id]=1;S.zchReq={sig,no};dirty();
+  toast(S.cfg.url?'Заявка № '+no+' записана, уйдёт в таблицу':'Заявка № '+no+' сохранена. Подключи таблицу во вкладке «Журнал»');return no;}
 function zCartText(){const d=today().split('-').reverse().join('.');
-  const head=['Заявка на запчасти JK830-2',[d,S.user||''].filter(Boolean).join(', ')];
+  const head=['Заявка на запчасти JK830-2'+(S.zchReq?' № '+S.zchReq.no:''),[d,S.user||''].filter(Boolean).join(', ')];
   return head.concat(S.zchCart.map((it,k)=>`${k+1}. ${it.nm} — ${it.pn||'без номера'} — ${it.q} шт. (${it.secT}${it.pos?', поз. '+it.pos:''})`),S.zchNote?['Комментарий: '+S.zchNote]:[]).join('\n');}
 async function zCopyText(t){try{await navigator.clipboard.writeText(t);toast('Заявка скопирована — вставь в мессенджер');}catch(e){toast('Не удалось скопировать');}}
 let zCur=null,zUrl='',zZoom=1;
