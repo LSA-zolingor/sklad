@@ -40,6 +40,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--vis);outline-offset:2px}
 [hidden]{display:none!important}
 header.top{position:sticky;top:0;z-index:20;background:var(--bar);color:var(--barInk);padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;display:flex;align-items:center;gap:10px}
+header.top{flex-wrap:wrap}
+#whBar{flex:1 0 100%;display:flex;gap:6px}
+#whBar button{flex:1;min-height:40px;border:1.5px solid rgba(255,255,255,.35);border-radius:8px;background:transparent;color:var(--barInk);font-weight:700;font-size:16px}
+#whBar button[aria-pressed="true"]{background:var(--vis);border-color:var(--vis);color:var(--visInk)}
 header.top h1{margin:0;font-size:22px;font-weight:700;line-height:1.1;flex:1;min-width:0}
 header.top h1 small{display:block;font:500 14px/1.2 Roboto,system-ui,sans-serif;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sync{border:0;border-radius:8px;padding:9px 12px;font-weight:600;background:rgba(255,255,255,.12);color:var(--barInk);white-space:nowrap;min-height:44px}
@@ -159,6 +163,7 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
 <header class="top">
   <h1>Склад<small id="who">учёт и инвентаризация</small></h1>
   <button class="sync" id="syncBtn" type="button">Отправить</button>
+  <div id="whBar" role="group" aria-label="Какой склад" hidden></div>
 </header>
 <div id="updBar" hidden><span>Вышло обновление приложения</span><button class="btn" id="updBtn" type="button">Перезапустить</button></div>
 
@@ -203,6 +208,7 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
       <button class="btn ghost" id="demoBtn" type="button">Пример для показа</button>
       <button class="btn" id="preset1cBtn" type="button">Загрузить 149 позиций из 1С</button>
       <button class="btn" id="presetLocBtn" type="button" hidden>Разнести по ячейкам JKsz</button>
+      <button class="btn" id="presetJzBtn" type="button" hidden>Склад JZso: загрузить коробки и стеллаж</button>
     </div>
   </section>
 
@@ -483,6 +489,15 @@ let autoT=null;
 function autoSync(delay){clearTimeout(autoT);if(!S.cfg.url||!pending())return;autoT=setTimeout(()=>{if(navigator.onLine)sync(true);},delay||3000);}
 window.addEventListener('online',()=>autoSync(1000));
 setInterval(()=>{if(pending()&&!syncing)autoSync(1);},5*60*1000);
+/* переключатель складов: основной JKsz и JZso. Склад позиции — по ячейке (whOf ниже).
+   Пока позиций JZso нет, переключатель скрыт и всё работает как раньше. */
+const WHS=[['JKSZ','Основной JKsz'],['JZSO','Склад JZso']];
+const hasJz=()=>Object.values(view().items).some(i=>whOf(i)==='JZSO');
+const curWh=()=>S.curWh==='JZSO'&&hasJz()?'JZSO':'JKSZ';
+const inWh=i=>!hasJz()||whOf(i)===curWh();
+function renderWh(){const b=$('#whBar'),on=hasJz();b.hidden=!on;if(!on)return;const w=curWh();
+  b.innerHTML=WHS.map(([k,l])=>`<button type="button" data-wh="${k}" aria-pressed="${k===w}">${l}</button>`).join('');}
+function setWh(w,why){if(w===curWh())return;S.curWh=w;save();renderWh();renderActive();if(why)toast(why+': '+WHS.find(x=>x[0]===w)[1]);}
 const stockOf=c=>Math.round((view().stock[c]||0)*1000)/1000;
 const ALPH='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 function newCode(){const V=view();for(;;){let c='K';for(let i=0;i<5;i++)c+=ALPH[Math.floor(Math.random()*ALPH.length)];if(!V.items[c])return c;}}
@@ -499,11 +514,11 @@ function renderStatus(){const b=$('#syncBtn'),n=pending();b.classList.toggle('pe
   b.textContent=syncing?'Отправка…':n?(navigator.onLine?`Отправить (${n})`:`Не отправлено (${n})`):(S.cfg.url?'Всё отправлено':'Таблица');}
 
 /* ---------- вкладка «Поиск» ---------- */
-function renderScan(){const V=view(),its=Object.values(V.items);
+function renderScan(){const V=view(),its=Object.values(V.items).filter(inWh);
   const low=its.filter(i=>num(i.min)>0&&stockOf(i.code)<num(i.min));
   $('#scanStats').innerHTML=`<div><strong>${its.length}</strong><span>позиций</span></div><div><strong>${new Set(its.map(i=>i.loc).filter(Boolean)).size}</strong><span>адресов</span></div><div><strong class="${low.length?'low':''}">${low.length}</strong><span>ниже минимума</span></div>`;
   $('#scanLow').innerHTML=low.length?`<div class="card"><h2>Пора заказать</h2>${low.slice(0,8).map(i=>`<div class="it" style="grid-template-columns:1fr auto;padding:8px 0"><button class="open" type="button" data-open="${esc(i.code)}"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.code)}${i.loc?' · '+esc(i.loc):''}</div></button><div class="q low">${fq(stockOf(i.code))}<small> / мин ${fq(num(i.min))} ${esc(unitOf(i))}</small></div></div>`).join('')}</div>`:'';
-  const mv=Object.values(V.moves).sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,6);
+  const mv=Object.values(V.moves).filter(m=>!V.items[m.code]||inWh(V.items[m.code])).sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,6);
   $('#scanLast').innerHTML=mv.length?`<div class="card"><h2>Последние операции</h2>${mv.map(moveRow).join('')}</div>`
     :(its.length?'':'<div class="card"><h2>С чего начать</h2><ol style="margin:0;padding-left:22px"><li>Вкладка «Склад»: добавь позиции или загрузи список из Excel.</li><li>Напечатай этикетки и наклей на ячейки и товар.</li><li>Дальше всё через «Сканировать»: приход, выдача, перемещение, инвентаризация.</li></ol></div>');
 }
@@ -511,6 +526,7 @@ const TYPES={in:'Приход',out:'Расход',move:'Перемещение',
 function moveRow(m){const it=view().items[m.code];const s=m.type==='out'?'−':m.type==='move'?'':'+';
   const q=m.type==='move'?`${esc(m.from||'—')} → ${esc(m.to||'')}`:`${s}${fq(Math.abs(num(m.qty)))} ${esc(unitOf(it))}`;
   return `<div class="it" style="grid-template-columns:1fr auto;padding:8px 0"><button class="open" type="button" data-open="${esc(m.code)}"><div class="nm">${esc(it?it.name:m.code)}</div><div class="sub"><span class="tag ${m.type==='in'?'in':m.type==='out'?'out':m.type==='adj'?'adj':''}">${TYPES[m.type]||m.type}</span>${m.whom?esc(m.whom)+' · ':''}${esc(m.by||'')} · ${tm(m.at)}${S.dMoves[m.id]?' · не отправлено':''}</div></button><div class="q" style="font-size:18px">${q}</div></div>`;}
+$('#whBar').addEventListener('click',ev=>{const b=ev.target.closest('[data-wh]');if(b)setWh(b.dataset.wh,'Открыт');});
 document.addEventListener('click',ev=>{const o=ev.target.closest('[data-open]');if(o){ev.preventDefault();openItem(o.dataset.open);}});
 $('#codeGo').onclick=()=>{const c=$('#codeIn').value.trim();if(c)handleCode(c);};
 $('#codeIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('#codeGo').click();});
@@ -521,7 +537,7 @@ function parseCode(raw){raw=String(raw||'').trim();
   return{item:raw.toUpperCase().replace(/\s/g,'')};}
 function handleCode(raw){const p=parseCode(raw),V=view();
   if(p.loc){showLoc(p.loc);return;}
-  let c=p.item;if(!V.items[c]){const f=Object.values(V.items).find(i=>(i.art||'').toUpperCase().replace(/\s/g,'')===c);if(f)c=f.code;}
+  let c=p.item;if(!V.items[c]){const a=Object.values(V.items).filter(i=>(i.art||'').toUpperCase().replace(/\s/g,'')===c);const f=a.find(inWh)||a[0];if(f)c=f.code;}
   if(!V.items[c]&&!/#[il]=/.test(String(raw))){const f=findItems(raw);
     if(f.length===1)c=f[0].code;
     else if(f.length>1&&scanMode!=='count'){setTab('items');$('#q').value=String(raw).trim();renderItems();toast('Найдено позиций: '+f.length);return;}}
@@ -529,13 +545,15 @@ function handleCode(raw){const p=parseCode(raw),V=view();
     if(!/#[il]=/.test(r)&&scanMode!=='count'){setTab('scan');$('#notFoundT').textContent='«'+r+'» нет на складе. Если это новая запчасть — добавь её:';$('#notFoundAdd').textContent='＋ Добавить «'+r+'»';$('#notFoundAdd').dataset.name=r;const zk=ZC?zSearch(r).total:0;$('#notFoundKat').hidden=!zk;if(zk){$('#notFoundKat').textContent='📚 В каталоге: '+zk;$('#notFoundKat').dataset.q=r;}$('#notFound').hidden=false;}
     return;}
   $('#notFound').hidden=true;
+  /* отсканировали позицию другого склада — переключаемся на её склад */
+  if(scanMode!=='count'&&!inWh(V.items[c]))setWh(whOf(V.items[c]),'Позиция другого склада, переключено');
   if(scanMode==='count'&&activeInv()){openCount(c);return;}
   openItem(c);}
 /* поиск по всем полям: код, название, артикул 1С, кат. №, группа, ячейка; без учёта регистра, пробелов, вида тире
    и раскладки для одинаковых на вид букв (русская С = латинская C) */
 const normQ=x=>String(x||'').toLowerCase().replace(/ё/g,'е').replace(/[\u2010-\u2015\u2212]/g,'-').replace(/[\s\-.,!?]+/g,'').replace(/[авекмнорстух]/g,ch=>'abekmhopctyx'['авекмнорстух'.indexOf(ch)]);
 const itemHit=(i,q)=>[i.code,i.name,i.art,i.note,i.cat,i.loc].some(x=>normQ(x).includes(q));
-function findItems(raw){const q=normQ(raw);if(!q)return[];return Object.values(view().items).filter(i=>itemHit(i,q));}
+function findItems(raw){const q=normQ(raw);if(!q)return[];return Object.values(view().items).filter(i=>inWh(i)&&itemHit(i,q));}
 /* голосовой поиск: распознавание речи браузером (Chrome на Android), нужен интернет */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null;
 function renderVoice(){const b=$('#voiceGo'),h=$('#voiceHint');if(!SR){b.hidden=true;h.hidden=true;return;}
@@ -547,7 +565,7 @@ $('#voiceGo').onclick=()=>{if(!SR||rec)return;rec=new SR();rec.lang='ru-RU';rec.
   rec.onend=()=>{rec=null;renderVoice();};
   try{rec.start();}catch(e){rec=null;}renderVoice();};
 window.addEventListener('online',renderVoice);window.addEventListener('offline',renderVoice);renderVoice();
-function showLoc(loc){setTab('items');$('#q').value=loc;renderItems();toast('Ячейка '+loc);}
+function showLoc(loc){if(hasJz()){const w=/^JZSO-/i.test(loc)?'JZSO':'JKSZ';if(w!==curWh())setWh(w,'Ячейка другого склада, переключено');}setTab('items');$('#q').value=loc;renderItems();toast('Ячейка '+loc);}
 
 /* ---------- камера ---------- */
 let stream=null,scanTimer=null,detector=null,scanMode='card',lastHit='';
@@ -645,11 +663,13 @@ let editCode=null;
 function openEdit(code){editCode=code||null;const it=code?view().items[code]:{unit:'шт'};
   $('#ed-title').textContent=code?'Изменить позицию':'Новая позиция';
   [['name','name'],['art','art'],['loc','loc'],['cat','cat'],['min','min'],['note','note']].forEach(([f,k])=>$('#ed-'+f).value=it[k]==null?'':it[k]);
+  if(!code&&curWh()==='JZSO'&&hasJz())$('#ed-loc').value='JZSO-';
   $('#ed-unit').value=it.unit||'шт';$('#ed-qtyL').hidden=!!code;$('#ed-qty').value='';$('#ed-del').hidden=!code;
   $('#catList').innerHTML=[...new Set(Object.values(view().items).map(i=>i.cat).filter(Boolean))].map(c=>`<option value="${esc(c)}">`).join('');fillLocList();
   if($('#dlgItem').open)$('#dlgItem').close();$('#dlgEdit').showModal();}
 $('#ed-cancel').onclick=()=>{$('#dlgEdit').close();if(editCode)openItem(editCode);};
 $('#ed-ok').onclick=()=>{const name=$('#ed-name').value.trim();if(!name){toast('Нужно наименование');return;}
+  if(!editCode&&curWh()==='JZSO'&&hasJz()&&!/^JZSO-\S+/i.test($('#ed-loc').value.trim())){toast('Для склада JZso укажи ячейку: JZSO-1 … JZSO-5');$('#ed-loc').focus();return;}
   if(!editCode&&!$('#ed-ok').dataset.ok){askSure('Добавить позицию',`Вы уверены, что хотите добавить позицию «${name}»?`,'Да, добавить',()=>{$('#ed-ok').dataset.ok='1';$('#ed-ok').click();});return;}
   delete $('#ed-ok').dataset.ok;
   const base=editCode?view().items[editCode]:{code:newCode(),created:new Date().toISOString()};
@@ -688,9 +708,9 @@ renderPin();
 /* ---------- вкладка «Склад» ---------- */
 let filt='all';const sel=new Set();
 function renderItems(){const V=view(),q=$('#q').value.trim().toLowerCase();
-  const cats=[...new Set(Object.values(V.items).map(i=>i.cat).filter(Boolean))].sort();
+  const cats=[...new Set(Object.values(V.items).filter(inWh).map(i=>i.cat).filter(Boolean))].sort();
   $('#flt').innerHTML=[['all','Все'],['low','Ниже минимума'],['zero','Нет в наличии']].concat(cats.map(c=>['c:'+c,c])).map(([k,l])=>`<button type="button" data-f="${esc(k)}" aria-pressed="${filt===k}">${esc(l)}</button>`).join('');
-  let its=Object.values(V.items);
+  let its=Object.values(V.items).filter(inWh);
   if(q){const lq=q.toUpperCase(),exact=its.some(i=>(i.loc||'').toUpperCase()===lq);const nq=normQ(q);
     its=its.filter(i=>exact?(i.loc||'').toUpperCase()===lq:itemHit(i,nq));}
   if(filt==='low')its=its.filter(i=>num(i.min)>0&&stockOf(i.code)<num(i.min));
@@ -701,6 +721,7 @@ function renderItems(){const V=view(),q=$('#q').value.trim().toLowerCase();
   $('#demoBtn').hidden=Object.keys(V.items).length>0;
   $('#preset1cBtn').hidden=PRESET_1C.every(r=>V.items[r[0]]);
   $('#presetLocBtn').hidden=!Object.entries(PRESET_LOC).some(([c,l])=>V.items[c]&&V.items[c].loc!==l);
+  $('#presetJzBtn').hidden=PRESET_JZSO.every(r=>V.items[r[0]]);
   $('#itemList').innerHTML=its.length?`<div class="list">${its.map(i=>{const st=stockOf(i.code),low=num(i.min)>0&&st<num(i.min);
     return `<div class="it"><input type="checkbox" data-sel="${esc(i.code)}"${sel.has(i.code)?' checked':''} aria-label="Выбрать ${esc(i.name)}"><button class="open" type="button" data-open="${esc(i.code)}"><div class="nm">${esc(i.name)}</div><div class="sub">${esc(i.code)}${i.art?' · '+esc(i.art):''}${i.loc?' · <b>'+esc(i.loc)+'</b>':''}</div></button><div class="q ${low||st<0?'low':''}">${fq(st)}<small> ${esc(unitOf(i))}</small></div></div>`;}).join('')}</div>`
     :`<div class="card muted">${Object.keys(V.items).length?'Ничего не найдено.':'Позиций пока нет. Добавь вручную, загрузи список из Excel или нажми «Пример для показа».'}</div>`;}
@@ -753,6 +774,19 @@ $('#preset1cBtn').onclick=()=>{const V=view();let n=0,sk=0;const at=new Date().t
     n++;});
   renderActive();toast(`Загружено из 1С: ${n}`+(sk?`, уже были: ${sk}`:''));};
 
+/* второй склад JZso (05.11.2026, списки Стаса): ячейки JZSO-1…4 = коробки 1–4, JZSO-5 = стеллаж.
+   [код, наименование, номер/артикул, ед., группа, кол-во, ячейка, где лежит] */
+const PRESET_JZSO=[["Z101","Перепускной клапан","8849504","шт","JK830: Гидравлика и пневматика",1,"JZSO-1","Коробка 1"],["Z102","О-образное кольцо","GB3452-82, 61,5×3,55","шт","JK830: Уплотнения",2,"JZSO-1","Коробка 1"],["Z103","О-образное кольцо","65×3,1","шт","JK830: Уплотнения",4,"JZSO-1","Коробка 1"],["Z104","О-образное кольцо","55×3,1","шт","JK830: Уплотнения",2,"JZSO-1","Коробка 1"],["Z105","О-образное кольцо","48,7×3,55","шт","JK830: Уплотнения",6,"JZSO-1","Коробка 1"],["Z106","О-образное кольцо","45×3,1","шт","JK830: Уплотнения",4,"JZSO-1","Коробка 1"],["Z107","О-образное кольцо","145×2,65","шт","JK830: Уплотнения",1,"JZSO-1","Коробка 1"],["Z108","О-образное кольцо","128×3,55","шт","JK830: Уплотнения",1,"JZSO-1","Коробка 1"],["Z109","Пылезащитное уплотнение с двойной кромкой (+ тканевое кольцо 1 шт., диаметр меньше)","TZF2-115×6","шт","JK830: Уплотнения",1,"JZSO-1","Коробка 1"],["Z110","О-образное кольцо","125×2,65","шт","JK830: Уплотнения",2,"JZSO-1","Коробка 1"],["Z111","О-образное кольцо","136×3,55","шт","JK830: Уплотнения",2,"JZSO-1","Коробка 1"],["Z112","О-образное кольцо","35×3,1","шт","JK830: Уплотнения",4,"JZSO-1","Коробка 1"],["Z113","О-образное кольцо","41,2×3,55","шт","JK830: Уплотнения",2,"JZSO-1","Коробка 1"],["Z114","О-образное кольцо","46,2×5,3","шт","JK830: Уплотнения",1,"JZSO-1","Коробка 1"],["Z115","О-образное кольцо","40×3,1","шт","JK830: Уплотнения",2,"JZSO-1","Коробка 1"],["Z116","О-образное кольцо","32×3,1","шт","JK830: Уплотнения",4,"JZSO-1","Коробка 1"],["Z117","О-образное кольцо","162,5×3,55","шт","JK830: Уплотнения",1,"JZSO-1","Коробка 1"],["Z118","О-образное кольцо","103×3,55","шт","JK830: Уплотнения",2,"JZSO-1","Коробка 1"],["Z119","О-образное кольцо","60×3,55","шт","JK830: Уплотнения",2,"JZSO-1","Коробка 1"],["Z120","Реле 24 V","HHZ-024-1Z1GR(U)","шт","JK830: Электрика и датчики",5,"JZSO-1","Коробка 1"],["Z121","Сальник","PD 70×95×12, HG4-692-67","шт","JK830: Уплотнения",2,"JZSO-1","Коробка 1"],["Z122","Втулка","JK830010210","шт","JK830: Механика",2,"JZSO-1","Коробка 1"],["Z123","Сальник","110×140×12","шт","JK830: Уплотнения",2,"JZSO-1","Коробка 1"],["Z124","Сальник","115×140×16, HG4-692-67","шт","JK830: Уплотнения",2,"JZSO-1","Коробка 1"],["Z125","Сальник","130×160×15","шт","JK830: Уплотнения",6,"JZSO-1","Коробка 1"],["Z126","Пыленепроницаемое кольцо типа С","FC 125×110×8,5","шт","JK830: Уплотнения",1,"JZSO-1","Коробка 1"],["Z127","Пружинная шайба","GB93-87","шт","JK830: Механика",4,"JZSO-1","Коробка 1"],["Z128","YX-образное уплотнительное кольцо для оси","JB/ZQ 4265-2006, YX d60","шт","JK830: Уплотнения",2,"JZSO-1","Коробка 1"],["Z129","Приводная втулка","JK830010527","шт","JK830: Механика",2,"JZSO-1","Коробка 1"],["Z130","Распорное кольцо","JK830010202","шт","JK830: Механика",1,"JZSO-1","Коробка 1"],["Z201","Блок циркуля (зажимная пластина штанги на люнетах)","JK830-130004","шт","JK830: Механика",4,"JZSO-2","Коробка 2"],["Z202","Барашковая пружина (тарельчатая пружина)","JKS300S-010017","шт","JK830: Механика",32,"JZSO-2","Коробка 2"],["Z203","Электромагнитный реверсивный клапан (воздушный клапан)","8849311-1","шт","JK830: Гидравлика и пневматика",1,"JZSO-2","Коробка 2"],["Z204","Трёхпозиционный электромагнитный (реверсивный) клапан","8816531","шт","JK830: Гидравлика и пневматика",1,"JZSO-2","Коробка 2"],["Z205","Запорная головка цепи","JK830-010601","шт","JK830: Механика",2,"JZSO-2","Коробка 2"],["Z206","Крышка подшипника","010528","шт","JK830: Механика",2,"JZSO-2","Коробка 2"],["Z207","Пластина манипулятора","420001A (420002)","шт","JK830: Механика",4,"JZSO-2","Коробка 2"],["Z208","Вал","JK830010525","шт","JK830: Механика",1,"JZSO-2","Коробка 2"],["Z209","Редукционный клапан","8831406","шт","JK830: Гидравлика и пневматика",1,"JZSO-2","Коробка 2"],["Z210","Соединение (с гайками)","010701","шт","JK830: Механика",1,"JZSO-2","Коробка 2"],["Z211","Цилиндрический подшипник","NJ2212E, GB/T283-1994","шт","JK830: Подшипники",2,"JZSO-2","Коробка 2"],["Z212","Радиальный шарикоподшипник с уплотнениями","6008-2RZ, GB/T276-94","шт","JK830: Подшипники",2,"JZSO-2","Коробка 2"],["Z213","Клапан пылесоса","","шт","JK830: Гидравлика и пневматика",3,"JZSO-2","Коробка 2"],["Z214","Перепускной клапан","8849313-1","шт","JK830: Гидравлика и пневматика",1,"JZSO-2","Коробка 2"],["Z215","Штифт","8×100, GB879-86","шт","JK830: Механика",4,"JZSO-2","Коробка 2"],["Z216","Тавотница","M10×1, GB1152-89","шт","JK830: Механика",2,"JZSO-2","Коробка 2"],["Z217","Предохранительный клапан","841022554","шт","JK830: Гидравлика и пневматика",1,"JZSO-2","Коробка 2"],["Z218","Штифт","8×80, GB879-86","шт","JK830: Механика",4,"JZSO-2","Коробка 2"],["Z219","Термостатический элемент (термостат на компрессор)","","шт","JK830: Гидравлика и пневматика",1,"JZSO-2","Коробка 2"],["Z301","Ремень поликлиновой","6PK1591","шт","JK830: Ремни",1,"JZSO-3","Коробка 3"],["Z302","Ремень поликлиновой","10PK2414","шт","JK830: Ремни",2,"JZSO-3","Коробка 3"],["Z401","Топливного насоса фильтры","220 PM-OR","шт","JK830: Фильтры",3,"JZSO-4","Коробка 4"],["Z402","Топливный фильтр","36277","шт","JK830: Фильтры",2,"JZSO-4","Коробка 4"],["Z403","Фильтры","9080","шт","JK830: Фильтры",2,"JZSO-4","Коробка 4"],["Z404","Топливный фильтр","36260","шт","JK830: Фильтры",1,"JZSO-4","Коробка 4"],["Z405","Топливный фильтр","5687","шт","JK830: Фильтры",2,"JZSO-4","Коробка 4"],["Z501","Стартер","C2874455","шт","JK830: Электрика и датчики",1,"JZSO-5","Стеллаж"],["Z502","Генератор","C2874279","шт","JK830: Электрика и датчики",1,"JZSO-5","Стеллаж"],["Z503","Адаптеры","114 мм× 130","шт","JK830: Буровой инструмент",5,"JZSO-5","Стеллаж"],["Z504","Футорки","ND55A","компл","JK830: Буровой инструмент",2,"JZSO-5","Стеллаж"],["Z505","Адаптеры","114 мм × 305","шт","JK830: Буровой инструмент",5,"JZSO-5","Стеллаж"],["Z506","Муфта соединительная","JK830-060003","шт","JK830: Механика",1,"JZSO-5","Стеллаж"],["Z507","Цилиндр на воздух","88060313","шт","JK830: Гидравлика и пневматика",1,"JZSO-5","Стеллаж"],["Z508","Звенья на цепь","010031","шт","JK830: Механика",10,"JZSO-5","Стеллаж"],["Z509","Крышка подшипника","","шт","JK830: Механика",2,"JZSO-5","Стеллаж"],["Z510","Гидронасос","Hymann","шт","JK830: Гидравлика и пневматика",1,"JZSO-5","Стеллаж"],["Z511","Вал приводной звезды","JK830010205","шт","JK830: Механика",1,"JZSO-5","Стеллаж"],["Z512","Звезда ведущая","JK830010302","шт","JK830: Механика",1,"JZSO-5","Стеллаж"],["Z513","Звезда приводная","JK830010201","шт","JK830: Механика",1,"JZSO-5","Стеллаж"],["Z514","Звезда приводная","JK830010524","шт","JK830: Механика",1,"JZSO-5","Стеллаж"],["Z515","Поворотный цилиндр манипулятора","JK810-420040","шт","JK830: Гидравлика и пневматика",1,"JZSO-5","Стеллаж"],["Z516","Косынка","JK830010407","шт","JK830: Механика",1,"JZSO-5","Стеллаж"],["Z517","Косынка","JK830010405","шт","JK830: Механика",1,"JZSO-5","Стеллаж"],["Z518","Форсунки на ДВС","","шт","JK830: Двигатель",3,"JZSO-5","Стеллаж"],["Z519","Подшипник","1217 GB/T281-94","шт","JK830: Подшипники",1,"JZSO-5","Стеллаж"],["Z520","Стержень тяговый (+4 гайки)","JK830010207","шт","JK830: Механика",2,"JZSO-5","Стеллаж"],["Z521","Пластина боковая направляющая рейки","JK830-380302","шт","JK830: Механика",2,"JZSO-5","Стеллаж"]];
+/* склад по адресу ячейки: JZSO-… → склад JZso, всё остальное (JKSZ-… и без ячейки) → основной склад JKsz */
+const whOf=it=>/^JZSO-/i.test(String(it&&it.loc||''))?'JZSO':'JKSZ';
+$('#presetJzBtn').onclick=()=>{const V=view();let n=0,sk=0;const at=new Date().toISOString();
+  PRESET_JZSO.forEach(([code,name,art,unit,cat,qty,loc,where])=>{if(V.items[code]){sk++;return;}
+    putItem({code,created:at,name,art,unit:unit||'шт',loc,min:'',cat,note:'Склад JZso, '+where});
+    if(num(qty,0)>0){const m=addMove({code,type:'in',qty:num(qty,0),whom:'опись склада JZso ('+where+')'});
+      delete S.moves[m.id];delete S.dMoves[m.id];m.id='m-jz-'+code;S.moves[m.id]=m;S.dMoves[m.id]=1;}
+    n++;});
+  renderActive();toast(`Склад JZso: загружено ${n}`+(sk?`, уже были: ${sk}`:''));};
+
 /* ---------- печать этикеток ---------- */
 const FMT={
   'a4-24':{page:'A4',w:70,h:37,cols:3,rows:8,mt:0.5,ml:0,qr:30},
@@ -780,18 +814,19 @@ window.addEventListener('afterprint',()=>{$('#print').innerHTML='';});
 
 /* ---------- инвентаризация ---------- */
 const activeInv=()=>{const v=S.invActive&&view().invs[S.invActive];return v&&!v.closed?v:null;};
-function invScope(inv){return Object.values(view().items).filter(i=>!inv.scope||(i.loc||'').startsWith(inv.scope)).sort((a,b)=>(a.loc||'яяя').localeCompare(b.loc||'яяя','ru')||a.name.localeCompare(b.name,'ru'));}
+function invScope(inv){return Object.values(view().items).filter(i=>(!inv.wh||whOf(i)===inv.wh)&&(!inv.scope||(inv.scope.includes('-')?(i.loc||'').toUpperCase()===inv.scope.toUpperCase():(i.loc||'').startsWith(inv.scope)))).sort((a,b)=>(a.loc||'яяя').localeCompare(b.loc||'яяя','ru')||a.name.localeCompare(b.name,'ru'));}
 function saveInv(inv){inv.updated=new Date().toISOString();S.invs[inv.id]=inv;S.dInvs[inv.id]=(S.dInvs[inv.id]|0)+1;dirty();}
 function renderInv(){const box=$('#invBody'),V=view(),inv=activeInv();
   const hist=Object.values(V.invs).filter(v=>v.closed).sort((a,b)=>(b.closedAt||'').localeCompare(a.closedAt||'')).slice(0,10);
   const histHTML=hist.length?`<div class="card"><h2>Проведённые</h2>${hist.map(v=>`<div class="it" style="grid-template-columns:1fr auto;padding:8px 0"><div><div class="nm">${esc(v.name)}</div><div class="sub">${tm(v.closedAt)} · ${esc(v.by||'')} · расхождений ${v.result?v.result.diffs:0}</div></div><button class="btn" type="button" data-invcsv="${esc(v.id)}">CSV</button></div>`).join('')}</div>`:'';
-  if(!inv){const locs=[...new Set(Object.values(V.items).map(i=>(i.loc||'').split('-')[0]).filter(Boolean))].sort();
+  if(!inv){const jz=hasJz(),wn=jz?WHS.find(x=>x[0]===curWh())[1]:'';
+    const locs=[...new Set(Object.values(V.items).filter(inWh).map(i=>jz?(i.loc||'').toUpperCase():(i.loc||'').split('-')[0]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru',{numeric:true}));
     box.innerHTML=`<div class="card"><h2>Новая инвентаризация</h2><p class="hint">Сканируешь этикетки и вводишь фактическое количество. В конце приложение покажет расхождения и поправит остатки.</p>
       <label class="f">Название<input id="iv-name" type="text" value="Инвентаризация ${today().split('-').reverse().join('.')}"></label>
-      <label class="f" style="margin-top:8px">Что считаем<select id="iv-scope"><option value="">Весь склад</option>${locs.map(l=>`<option value="${esc(l)}">Зона ${esc(l)}</option>`).join('')}</select></label>
+      <label class="f" style="margin-top:8px">Что считаем<select id="iv-scope"><option value="">Весь склад${jz?' · '+esc(wn):''}</option>${locs.map(l=>`<option value="${esc(l)}">Зона ${esc(l)}</option>`).join('')}</select></label>
       <button class="btn main big" id="iv-start" type="button" style="margin-top:12px">Начать</button></div>`+histHTML;
     $('#iv-start').onclick=()=>{if(!Object.keys(V.items).length){toast('Сначала добавь позиции на вкладке «Склад»');return;}
-      const v={id:'inv-'+Date.now().toString(36)+'-'+rid(),name:$('#iv-name').value.trim()||'Инвентаризация',scope:$('#iv-scope').value,started:new Date().toISOString(),by:S.user||'',counts:{},closed:false};
+      const v={id:'inv-'+Date.now().toString(36)+'-'+rid(),name:$('#iv-name').value.trim()||'Инвентаризация',scope:$('#iv-scope').value,wh:jz?curWh():'',started:new Date().toISOString(),by:S.user||'',counts:{},closed:false};
       saveInv(v);S.invActive=v.id;save();renderInv();};return;}
   const scope=invScope(inv),counted=scope.filter(i=>inv.counts[i.code]).length;
   const rows=scope.map(i=>{const c=inv.counts[i.code],st=stockOf(i.code),d=c?num(c.q)-st:null;return{i,c,st,d};});
@@ -816,7 +851,7 @@ $('#invBody').addEventListener('click',ev=>{const t=ev.target.closest('button');
     inv.closed=true;inv.cancelled=true;inv.closedAt=new Date().toISOString();inv.name+=' (отменена)';inv.result={diffs:0};saveInv(inv);S.invActive=null;save();renderInv();}});
 let ctCode=null;
 function openCount(code){const inv=activeInv(),it=view().items[code];if(!inv||!it)return;
-  if(inv.scope&&!(it.loc||'').startsWith(inv.scope)){toast(`${it.name} — не из зоны ${inv.scope}`);}
+  if((inv.scope||inv.wh)&&!invScope(inv).some(x=>x.code===it.code)){toast(`${it.name} — не из ${inv.scope?'зоны '+inv.scope:'этого склада'}`);}
   ctCode=code;const c=inv.counts[code];$('#ct-title').textContent=it.name;
   $('#ct-sub').textContent=`${it.code}${it.loc?' · '+it.loc:''} · по учёту ${fq(stockOf(code))} ${unitOf(it)}${c?' · уже посчитано '+fq(num(c.q)):''}`;
   $('#ct-qty').value=c?String(c.q).replace('.',','):'';$('#dlgCount').showModal();setTimeout(()=>$('#ct-qty').focus(),50);}
@@ -891,7 +926,7 @@ window.addEventListener('online',renderStatus);window.addEventListener('offline'
 
 /* ---------- вкладки ---------- */
 function setTab(t){S.tab=t;save();$$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+t));$$('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));renderActive();window.scrollTo(0,0);}
-function renderActive(){const t=S.tab;if(t==='scan')renderScan();if(t==='items')renderItems();if(t==='inv')renderInv();if(t==='log')renderLog();if(t==='kat')renderZch();}
+function renderActive(){renderWh();const t=S.tab;if(t==='scan')renderScan();if(t==='items')renderItems();if(t==='inv')renderInv();if(t==='log')renderLog();if(t==='kat')renderZch();}
 $$('nav.tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 /* ---------- каталог запчастей JK830-2 (как в журнале машиниста; данные в памяти телефона, на сайте их нет) ---------- */
 const ZDB=(()=>{let op=null;
@@ -929,16 +964,16 @@ function zSearch(q){q=String(q||'').trim();if(!q||!ZC_IDX)return{parts:[],secs:[
 const artKeys=it=>{const k=new Set();
   const src=[it.art,String(it.note||'').replace(/^.*?Кат\.?\s*№\s*/i,'')].concat((String(it.name||'').match(/\(([^)]+)\)/g)||[]).map(x=>x.slice(1,-1)));
   src.forEach(a=>{a=String(a||'');const w=pnNorm(a);if(w.length>=5)k.add(w);a.split(/[;,/]/).forEach(x=>{x=pnNorm(x);if(x.length>=6)k.add(x);});});return k;};
-function zStockMap(){const m=new Map();Object.values(view().items).forEach(it=>artKeys(it).forEach(k=>{if(!m.has(k))m.set(k,it.code);}));return m;}
+function zStockMap(){const m=new Map();Object.values(view().items).forEach(it=>artKeys(it).forEach(k=>{const a=m.get(k)||[];if(!a.includes(it.code))a.push(it.code);m.set(k,a);}));return m;}
 function zForItem(it){if(!ZC_IDX)return null;const ks=artKeys(it);if(!ks.size)return null;const f=ZC_IDX.filter(x=>x.pn&&ks.has(x.pn));return f.length?{si:f[0].si,pi:f[0].pi,n:f.length}:null;}
 const zKey=p=>pnNorm(p[1])||ruNorm(p[2]);
-function zPartRow(s,p,terms,showSec,sm,hlRow){const inCart=S.zchCart.find(c=>c.key===zKey(p)&&c.sec===s.c);const code=p[1]&&sm.get(pnNorm(p[1]));const it=code&&view().items[code];
+function zPartRow(s,p,terms,showSec,sm,hlRow){const inCart=S.zchCart.find(c=>c.key===zKey(p)&&c.sec===s.c);const codes=(p[1]&&sm.get(pnNorm(p[1])))||[];
   return`<div class="rec${hlRow?' hl':''}">
     <span class="no">${esc(p[0]||'·')}</span>
     <span><b>${terms?hl(p[2],terms):esc(p[2])}</b>${p[3]?` <span class="muted">× ${esc(p[3])}</span>`:''}
       <div style="font:600 15px/1.3 'Roboto Mono',ui-monospace,monospace;letter-spacing:.2px;user-select:all">${esc(p[1]||'—')}</div>
       ${p[4]?`<div class="t">${esc(p[4])}</div>`:''}
-      ${it?`<button type="button" data-zitem="${esc(code)}" style="all:unset;cursor:pointer;font-size:14px;font-weight:600;color:var(--vis)">📦 На складе: ${fq(stockOf(code))} ${esc(unitOf(it))}${it.loc?' · '+esc(it.loc):''}</button>`:''}
+      ${codes.map(code=>{const it=view().items[code];return it?`<button type="button" data-zitem="${esc(code)}" style="all:unset;cursor:pointer;font-size:14px;font-weight:600;color:var(--vis);display:block">📦 На складе: ${fq(stockOf(code))} ${esc(unitOf(it))}${it.loc?' · '+esc(it.loc):''}</button>`:'';}).join('')}
       ${showSec?`<button type="button" class="t" data-zsec="${s.k}" style="all:unset;cursor:pointer;color:var(--muted);font-size:13px;text-decoration:underline;display:block">${esc(s.c?s.c+' · ':'')}${esc(s.t)}</button>`:''}</span>
     <span class="row" style="gap:6px;flex-wrap:nowrap">${showSec?`<button class="btn" type="button" data-zpg="${s.k}" aria-label="Чертёж узла" style="min-height:42px;padding:4px 10px">Чертёж</button>`:''}
       <button class="btn${inCart?' main':''}" type="button" data-zadd="${s.k}:${s.p.indexOf(p)}" aria-label="В заявку" style="min-height:42px;padding:4px 12px;font-size:20px">${inCart?'✓':'+'}</button></span></div>`;}
