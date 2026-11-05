@@ -316,7 +316,7 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
   <h3 id="mv-title">Операция</h3>
   <p class="hint" id="mv-sub" style="margin:0"></p>
   <div class="qty" id="mv-qtyrow"><button class="btn" type="button" id="mv-minus" aria-label="Меньше">−</button><input id="mv-qty" inputmode="decimal" aria-label="Количество"><button class="btn" type="button" id="mv-plus" aria-label="Больше">+</button></div>
-  <label class="f" id="mv-whomL">Кому, куда<input id="mv-whom" type="text" list="whomList" placeholder="станок № 2, Иванов, участок"></label>
+  <label class="f" id="mv-whomL">Кому, куда<input id="mv-whom" type="text" list="whomList" placeholder="станок 414, Иванов, участок"></label>
   <datalist id="whomList"></datalist>
   <label class="f" id="mv-locL">Новый адрес хранения<input id="mv-loc" type="text" list="locList" autocapitalize="characters"></label>
   <datalist id="locList"></datalist>
@@ -348,7 +348,7 @@ mark{background:var(--soft);color:inherit;padding:0 1px;border-radius:2px}
   <p class="hint" style="margin:0">У каждой позиции своё количество. «Кому, куда», моточасы и примечание общие для всего списка.</p>
   <div id="bt-list"></div>
   <button class="btn" id="bt-scan" type="button">📷 Сканировать ещё</button>
-  <label class="f">Кому, куда (станок, ФИО, участок)<input id="bt-whom" type="text" list="whomList" placeholder="станок № 2, Иванов"></label>
+  <label class="f">Кому, куда (станок, ФИО, участок)<input id="bt-whom" type="text" list="whomList" placeholder="станок 414, Иванов"></label>
   <div class="grid2" id="bt-mach"></div>
   <label class="f">Моточасы станка (если знаешь)<input id="bt-mh" inputmode="decimal" placeholder="например 4520"></label>
   <label class="f">Примечание<input id="bt-note" type="text" placeholder="ТО-250, замена фильтров"></label>
@@ -527,6 +527,7 @@ let S;try{S=JSON.parse(localStorage.getItem(LS)||'null');}catch(e){S=null;}
 if(!S||!S.items)S={deviceId:rid(),user:'',wh:'',items:{},moves:{},invs:{},dItems:{},dMoves:{},dInvs:{},cfg:{url:'',key:''},lastSync:'',tab:'scan',invActive:null,recentWhom:[]};
 ['items','moves','invs','dItems','dMoves','dInvs','cfg','reqs','dReqs'].forEach(k=>{if(!S[k]||typeof S[k]!=='object')S[k]={};});
 if(!Array.isArray(S.recentWhom))S.recentWhom=[];
+S.recentWhom=S.recentWhom.filter(w=>!/^станок\s*№\s*[12]$/i.test(String(w).trim()));
 if(!Array.isArray(S.batch))S.batch=[];
 function save(){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){toast('Память телефона переполнена — отправь данные в таблицу');}}
 let shared={items:[],moves:[],invs:[],at:''};
@@ -712,12 +713,14 @@ $('#itemBody').addEventListener('click',ev=>{const t=ev.target.closest('button')
 
 /* ---------- операции ---------- */
 let op='in';
-const MACHINES=['Станок №1','Станок №2'];
+const MACHINES=['Станок 412','Станок 414'];
+/* 05.11.2026 станки №1/№2 переименованы в 412/414 — старые записи считаем по новым названиям */
+const MACH_OLD={'станок№1':'Станок 412','станок№2':'Станок 414'};
 function openMove(o,whom){op=o;const it=view().items[cur];
   $('#mv-title').textContent=TYPES[o];$('#mv-sub').textContent=`${it.name} · остаток ${fq(stockOf(cur))} ${unitOf(it)}`;
   $('#mv-qtyrow').hidden=o==='move';$('#mv-whomL').hidden=o==='move';$('#mv-locL').hidden=o!=='move';
   $('#mv-whomL').firstChild.textContent=o==='in'?'От кого (поставщик, накладная)':'Кому, куда (станок, ФИО, участок)';
-  $('#mv-whom').placeholder=o==='in'?'накладная № 125 от снабжения':'станок № 2, Иванов';
+  $('#mv-whom').placeholder=o==='in'?'накладная № 125 от снабжения':'станок 414, Иванов';
   $('#mv-mhL').hidden=o!=='out';$('#mv-mh').value='';
   $('#mv-qty').value='1';$('#mv-whom').value=whom||'';$('#mv-note').value='';$('#mv-loc').value=it.loc||'';
   $('#whomList').innerHTML=S.recentWhom.map(w=>`<option value="${esc(w)}">`).join('');
@@ -1026,7 +1029,7 @@ function repData(){const V=view(),[a,b]=repRange(),who=$('#rp-who').value,wh=$('
   const all=Object.values(V.moves),cancelled=new Set();all.forEach(m=>{if(m.undo){cancelled.add(m.undo);cancelled.add(m.id);}});
   const mv=all.filter(m=>{const d=locDay(m.at);if(!d||d<a||d>b||cancelled.has(m.id))return false;if(who&&m.by!==who)return false;
     if(wh&&hasJz()){const it=V.items[m.code];if(!it||whOf(it)!==wh)return false;}return true;}).sort((x,y)=>(x.at||'').localeCompare(y.at||''));
-  const mach=m=>MACHINES.find(x=>(m.whom||'').replace(/\s/g,'').toLowerCase()===x.replace(/\s/g,'').toLowerCase());
+  const mach=m=>{const w=(m.whom||'').replace(/\s/g,'').toLowerCase();return MACH_OLD[w]||MACHINES.find(x=>w===x.replace(/\s/g,'').toLowerCase());};
   const secs=[['Приход',mv.filter(m=>m.type==='in'),'От кого']];
   MACHINES.forEach(x=>secs.push(['Выдано: '+x,mv.filter(m=>m.type==='out'&&mach(m)===x),'Кому']));
   secs.push(['Расход (прочий)',mv.filter(m=>m.type==='out'&&!mach(m)),'Кому, куда']);
